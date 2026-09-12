@@ -46,7 +46,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 }
 
 static NSString *filterName(double value) {
-    if (value < -.00001) return [NSString stringWithFormat:@"Low-pass · %.0f Hz", 20000 * pow(60.0 / 20000, -value)];
+    if (value < -.00001) return [NSString stringWithFormat:@"Low-pass · %.0f Hz", 20000 * pow(115.0 / 20000, -value)];
     if (value > .00001) return [NSString stringWithFormat:@"High-pass · %.0f Hz", 20 * pow(10000.0 / 20, value)];
     return @"Bypass";
 }

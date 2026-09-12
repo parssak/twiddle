@@ -15,7 +15,16 @@ cp Info.plist "$candidate/Contents/Info.plist"
 mkdir -p "$candidate/Contents/Resources"
 cp Assets/AppIcon.icns "$candidate/Contents/Resources/AppIcon.icns"
 cp Assets/KnobMetal.png "$candidate/Contents/Resources/KnobMetal.png"
-bash scripts/sign-app.sh "$candidate"
+if [[ -n "${TWIDDLE_SIGN_IDENTITY:-}" ]]; then
+    [[ "$TWIDDLE_SIGN_IDENTITY" == 'Developer ID Application: '* ]] || {
+        echo 'Release signing requires a Developer ID Application identity.' >&2
+        exit 1
+    }
+    codesign --force --options runtime --timestamp --sign "$TWIDDLE_SIGN_IDENTITY" "$candidate"
+    codesign --verify --strict "$candidate"
+else
+    bash scripts/sign-app.sh "$candidate"
+fi
 "$candidate/Contents/MacOS/Twiddle" --self-test
 if [[ -e "$app" ]]; then mv "$app" "$staging/previous.app"; fi
 if ! mv "$candidate" "$app"; then

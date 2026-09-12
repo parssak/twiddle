@@ -27,7 +27,7 @@ static void filterFrame(Filter *f, float target, const float in[2], float out[2]
         f->position += (target - f->position) * (1 - exp(-16 / (.025 * f->sampleRate)));
         if (fabs(target - f->position) < 1e-7) f->position = target;
         double lowAmount = fmax(0, -f->position), highAmount = fmax(0, f->position);
-        coefficients(&f->low, 20000 * pow(60.0 / 20000, lowAmount), f->sampleRate, 0);
+        coefficients(&f->low, 20000 * pow(115.0 / 20000, lowAmount), f->sampleRate, 0);
         coefficients(&f->high, 20 * pow(10000.0 / 20, highAmount), f->sampleRate, 1);
     }
     double wet = fmin(1, fabs(f->position) / .03);

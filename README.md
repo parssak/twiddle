@@ -20,30 +20,38 @@ open /Applications/Lowpasser.app
 Run the same install command after changes to rebuild and update the installed app.
 It preserves the local signing identity used for macOS permissions.
 
-Click the filter icon in the menu bar to open the native glass popover. The Spotify
-and computer icons select Spotify only or all Mac audio. The power button turns
-processing on or off; turning it off eases back to bypass before releasing the audio
-route. The source and power choices are remembered across launches. Grant system
-audio recording permission when macOS asks, then reopen if required.
+Click the filter icon in the menu bar to open the native glass popover. The source
+button shows the current selection; click it to cycle between Spotify only and all
+Mac audio. This choice is remembered. Filtering stays active while the app is running;
+quit Lowpasser to release the route. Grant system audio recording permission when macOS
+asks, then reopen if required.
 
-The upper slider controls and displays the current filter. Move left to remove treble,
-right to remove bass; the center is bypass. The lower Fn slider sets the held preset
-without changing current audio. Holding Fn eases toward that preset over 180 ms;
-releasing returns to the previous setting over 400 ms. Changing the preset during a
-hold lets you hear it without changing the return setting. The preset is remembered.
-Turning power off cancels the hold and resets the filter over 180 ms. The DSP adds a
-short smoothing stage to these transitions.
+The rotary knob controls and displays the current filter. Turn counterclockwise to
+remove treble, clockwise to remove bass; twelve o'clock is bypass. Drag vertically or
+scroll to turn it, hold Shift for fine adjustments, and double-click to center it.
+Arrow keys also adjust the focused knob; Return centers it. Resetting the live filter
+with double-click or Return eases back to bypass over 180 ms. Crossing a tick on the arc
+while adjusting gives light haptic feedback on a supported trackpad, including at the
+limits. Automatic Fn transitions don't trigger haptics.
+The menu bar icon mirrors the knob's position, including Fn transitions and preset editing.
+
+Toggle the **cog icon** to edit the remembered held preset instead. The knob turns purple
+in this mode; editing doesn't change current audio unless Fn is held for a preview.
+Toggle it off to return to the current filter. Holding Fn eases toward the preset over
+180 ms; releasing restores the previous setting over 400 ms. Changing the preset during
+a hold still preserves the return setting.
+The DSP adds a short smoothing stage to these transitions.
 
 Right-click the menu bar icon for **Fn shortcut**, **Input Monitoring…**, and **Quit
 Lowpasser**. Enable Input Monitoring for Lowpasser in System Settings if needed, then
-reopen if macOS asks. An orange Fn icon means the shortcut isn't enabled. The listener
+reopen if macOS asks. An orange cog means the shortcut isn't enabled. The listener
 observes only modifier changes and doesn't suppress the keyboard's existing Fn/Globe
 action; set "Press Globe key to" to "Do Nothing" in Keyboard settings if desired.
 Closing the popover keeps processing active; quitting releases the audio route.
 
 This personal prototype supports stereo float audio and rejects other layouts. Start
 with built-in speakers or wired headphones. It restarts processing when the output
-changes and resumes after sleep if power is enabled. Bluetooth, physical sleep/wake,
+changes and resumes after sleep. Bluetooth, physical sleep/wake,
 protected content, multichannel devices, and latency are not validated. The app doesn't
 change your default output, save audio, or use the network.
 
@@ -76,7 +84,8 @@ Code boundaries:
 - `Filter.h`: DSP; `FilterControl.h`: baseline, held preset, and transitions.
 - `FnKeyMonitor`: permission and global modifier listening.
 - `AppDelegate`: menu bar, popover, and control/route coordination.
-- `Assets`: the supplied app icon and its macOS icon bundle.
+- `FilterKnob`: rotary drawing, mouse/keyboard input, and accessibility.
+- `Assets`: the supplied app icon and its macOS icon bundle, plus an imagegen brushed-aluminum texture for the knob face. Lighting stays fixed while the pointer rotates.
 
 The build checks DSP at both sample rates, reset settling, hold/release state, repeated
 modifier events, and listener cleanup. Event-decoder tests do not prove physical Fn

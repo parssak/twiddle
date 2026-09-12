@@ -1,27 +1,48 @@
 #import "AppDelegate.h"
 #import "AudioEngine.h"
 #import "FnKeyMonitor.h"
+#import "FilterKnob.h"
 #include "FilterControl.h"
 
 @interface AppDelegate () {
     FilterControl _control;
     unsigned _refreshTick;
-    double _stopAt;
-    BOOL _poweredOn, _spotifyOnly, _suspended;
+    NSInteger _statusAngle;
+    BOOL _spotifyOnly, _suspended, _editingPreset;
 }
 @property AudioEngine *engine;
 @property FnKeyMonitor *fnMonitor;
 @property NSStatusItem *statusItem;
 @property NSPopover *popover;
-@property NSSegmentedControl *scopeControl;
-@property NSSlider *slider, *presetSlider;
-@property NSButton *powerButton;
-@property NSImageView *fnIcon;
+@property NSButton *sourceButton;
+@property NSImage *spotifyIcon;
+@property FilterKnob *knob;
+@property NSTextField *readout;
+@property NSButton *presetButton;
 @property NSTimer *timer;
 @end
 
 static NSImage *symbol(NSString *name) {
     return [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
+}
+
+static NSImage *knobStatusImage(NSInteger degrees) {
+    NSImage *image = [NSImage imageWithSize:NSMakeSize(18, 18) flipped:NO drawingHandler:^BOOL(NSRect bounds) {
+        [NSColor.blackColor setStroke];
+        NSBezierPath *outline = [NSBezierPath bezierPathWithOvalInRect:NSMakeRect(3.375, 3.375, 11.25, 11.25)];
+        outline.lineWidth = 1.2375;
+        [outline stroke];
+        double angle = (90 - degrees) * M_PI / 180;
+        NSBezierPath *pointer = [NSBezierPath bezierPath];
+        [pointer moveToPoint:NSMakePoint(9 + cos(angle) * 5.625, 9 + sin(angle) * 5.625)];
+        [pointer lineToPoint:NSMakePoint(9 + cos(angle) * 1.5, 9 + sin(angle) * 1.5)];
+        pointer.lineWidth = 1.2375;
+        pointer.lineCapStyle = NSLineCapStyleRound;
+        [pointer stroke];
+        return YES;
+    }];
+    image.template = YES;
+    return image;
 }
 
 static NSString *filterName(double value) {
@@ -37,14 +58,13 @@ static NSString *filterName(double value) {
     if (!isfinite(_control.preset)) _control.preset = -.72;
     _control.preset = fmin(1, fmax(-1, _control.preset));
     _spotifyOnly = [defaults objectForKey:@"spotifyOnly"] ? [defaults boolForKey:@"spotifyOnly"] : YES;
-    _poweredOn = [defaults objectForKey:@"powerEnabled"] ? [defaults boolForKey:@"powerEnabled"] : YES;
     self.engine = [AudioEngine new];
     self.fnMonitor = [FnKeyMonitor new];
     __weak AppDelegate *weakSelf = self;
     self.fnMonitor.changed = ^(BOOL held) { [weakSelf fnHeld:held]; };
     if (![defaults boolForKey:@"fnDisabled"]) [self.fnMonitor enableRequestingPermission:NO];
     self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
-    self.statusItem.button.image = symbol(@"line.3.horizontal.decrease");
+    self.statusItem.button.image = knobStatusImage(0);
     self.statusItem.button.accessibilityLabel = @"Lowpasser";
     self.statusItem.button.toolTip = @"Lowpasser";
     self.statusItem.button.target = self;
@@ -58,57 +78,40 @@ static NSString *filterName(double value) {
     [workspace addObserver:self selector:@selector(suspend:) name:NSWorkspaceSessionDidResignActiveNotification object:nil];
     [workspace addObserver:self selector:@selector(resume:) name:NSWorkspaceDidWakeNotification object:nil];
     [workspace addObserver:self selector:@selector(resume:) name:NSWorkspaceSessionDidBecomeActiveNotification object:nil];
-    if (_poweredOn) [self start];
+    [self start];
     [self updateControl];
 }
 - (void)buildPopover {
-    NSRect bounds = NSMakeRect(0, 0, 304, 180);
+    NSRect bounds = NSMakeRect(0, 0, 240, 216);
     NSView *content = [[NSView alloc] initWithFrame:bounds];
-    NSGlassEffectView *glass = [[NSGlassEffectView alloc] initWithFrame:bounds];
-    glass.style = NSGlassEffectViewStyleRegular;
-    glass.cornerRadius = 20;
-    glass.contentView = content;
     NSURL *spotifyURL = [NSWorkspace.sharedWorkspace URLForApplicationWithBundleIdentifier:@"com.spotify.client"];
-    NSImage *spotify = spotifyURL ? [NSWorkspace.sharedWorkspace iconForFile:spotifyURL.path] : symbol(@"music.note");
-    spotify.size = NSMakeSize(22, 22);
-    self.scopeControl = [NSSegmentedControl segmentedControlWithImages:@[spotify, symbol(@"desktopcomputer")]
-        trackingMode:NSSegmentSwitchTrackingSelectOne target:self action:@selector(scopeChanged:)];
-    self.scopeControl.frame = NSMakeRect(18, 128, 112, 32);
-    self.scopeControl.selectedSegment = _spotifyOnly ? 0 : 1;
-    [self.scopeControl setWidth:48 forSegment:0];
-    [self.scopeControl setWidth:48 forSegment:1];
-    [self.scopeControl setToolTip:@"Spotify only" forSegment:0];
-    [self.scopeControl setToolTip:@"All Mac audio" forSegment:1];
-    self.scopeControl.accessibilityLabel = @"Audio source";
-    [content addSubview:self.scopeControl];
-    self.powerButton = [NSButton buttonWithImage:symbol(@"power") target:self action:@selector(togglePower:)];
-    self.powerButton.frame = NSMakeRect(252, 128, 34, 32);
-    self.powerButton.bezelStyle = NSBezelStyleCircular;
-    [content addSubview:self.powerButton];
-    NSBox *divider = [[NSBox alloc] initWithFrame:NSMakeRect(18, 113, 268, 1)];
-    divider.boxType = NSBoxSeparator;
-    [content addSubview:divider];
-    NSImageView *currentIcon = [NSImageView imageViewWithImage:symbol(@"waveform.path")];
-    currentIcon.frame = NSMakeRect(18, 82, 22, 22);
-    currentIcon.contentTintColor = NSColor.secondaryLabelColor;
-    currentIcon.toolTip = @"Current filter";
-    [content addSubview:currentIcon];
-    self.slider = [NSSlider sliderWithValue:0 minValue:-1 maxValue:1 target:self action:@selector(sliderChanged:)];
-    self.slider.frame = NSMakeRect(52, 80, 232, 26);
-    self.slider.continuous = YES;
-    self.slider.accessibilityLabel = @"Current filter";
-    [content addSubview:self.slider];
-    self.fnIcon = [NSImageView imageViewWithImage:symbol(@"fn")];
-    self.fnIcon.frame = NSMakeRect(18, 36, 22, 22);
-    [content addSubview:self.fnIcon];
-    self.presetSlider = [NSSlider sliderWithValue:_control.preset minValue:-1 maxValue:1 target:self action:@selector(presetChanged:)];
-    self.presetSlider.frame = NSMakeRect(52, 34, 232, 26);
-    self.presetSlider.continuous = YES;
-    self.presetSlider.accessibilityLabel = @"Fn preset";
-    self.presetSlider.toolTip = [@"Fn preset: " stringByAppendingString:filterName(_control.preset)];
-    [content addSubview:self.presetSlider];
+    self.spotifyIcon = spotifyURL ? [NSWorkspace.sharedWorkspace iconForFile:spotifyURL.path] : symbol(@"music.note");
+    self.spotifyIcon.size = NSMakeSize(22, 22);
+    self.sourceButton = [NSButton buttonWithImage:self.spotifyIcon target:self action:@selector(scopeChanged:)];
+    self.sourceButton.frame = NSMakeRect(18, 12, 28, 28);
+    self.sourceButton.bordered = NO;
+    [self updateSourceButton];
+    [content addSubview:self.sourceButton];
+    self.knob = [[FilterKnob alloc] initWithFrame:NSMakeRect(34, 32, 172, 164)];
+    self.knob.target = self;
+    self.knob.action = @selector(knobChanged:);
+    self.knob.resetAction = @selector(resetKnob:);
+    [content addSubview:self.knob];
+    self.readout = [NSTextField labelWithString:@"Bypass"];
+    self.readout.alignment = NSTextAlignmentCenter;
+    self.readout.font = [NSFont monospacedDigitSystemFontOfSize:12 weight:NSFontWeightMedium];
+    CGFloat textHeight = self.readout.fittingSize.height;
+    self.readout.frame = NSMakeRect(48, NSMidY(self.sourceButton.frame) - textHeight / 2, 144, textHeight);
+    self.readout.textColor = NSColor.secondaryLabelColor;
+    [content addSubview:self.readout];
+    self.presetButton = [NSButton buttonWithImage:symbol(@"gearshape") target:self action:@selector(togglePresetEditing:)];
+    self.presetButton.frame = NSMakeRect(194, 12, 28, 28);
+    self.presetButton.bordered = NO;
+    [self.presetButton setButtonType:NSButtonTypePushOnPushOff];
+    self.presetButton.accessibilityLabel = @"Edit Fn preset";
+    [content addSubview:self.presetButton];
     NSViewController *controller = [NSViewController new];
-    controller.view = glass;
+    controller.view = content;
     self.popover = [NSPopover new];
     self.popover.contentViewController = controller;
     self.popover.contentSize = bounds.size;
@@ -156,77 +159,86 @@ static NSString *filterName(double value) {
 - (void)updateControl {
     double value = controlValue(&_control, NSProcessInfo.processInfo.systemUptime);
     self.engine.target = value;
-    if (self.slider.doubleValue != value) self.slider.doubleValue = value;
-    self.slider.enabled = _poweredOn && self.engine.running && !_control.held;
-    self.powerButton.contentTintColor = _poweredOn ? NSColor.controlAccentColor : NSColor.secondaryLabelColor;
-    self.powerButton.accessibilityLabel = _poweredOn ? @"Turn filtering off" : @"Turn filtering on";
-    self.powerButton.toolTip = self.powerButton.accessibilityLabel;
-    self.fnIcon.contentTintColor = _control.held ? NSColor.controlAccentColor :
+    double displayed = _editingPreset ? _control.preset : value;
+    self.knob.doubleValue = displayed;
+    // Match the visible knob, including preset editing. Whole degrees avoid
+    // redrawing the tiny template image for subpixel changes or idle frames.
+    NSInteger angle = lround(displayed * 135);
+    if (angle != _statusAngle) {
+        _statusAngle = angle;
+        self.statusItem.button.image = knobStatusImage(angle);
+    }
+    self.knob.enabled = _editingPreset || (self.engine.running && !_control.held);
+    self.knob.editingPreset = _editingPreset;
+    self.knob.accessibilityLabel = _editingPreset ? @"Fn preset" : @"Current filter";
+    NSString *name = filterName(displayed);
+    if (![self.readout.stringValue isEqualToString:name]) self.readout.stringValue = name;
+    self.presetButton.state = _editingPreset ? NSControlStateValueOn : NSControlStateValueOff;
+    self.presetButton.contentTintColor = _editingPreset ? NSColor.systemPurpleColor :
         (self.fnMonitor.enabled ? NSColor.secondaryLabelColor : NSColor.systemOrangeColor);
-    self.fnIcon.toolTip = self.fnMonitor.enabled ? @"Fn preset" : @"Fn unavailable — right-click the menu bar icon to enable it";
-    self.statusItem.button.appearsDisabled = !_poweredOn;
+    self.presetButton.toolTip = self.fnMonitor.enabled ? @"Edit the held Fn preset" : @"Fn unavailable — right-click the menu bar icon to enable it";
 }
-- (void)sliderChanged:(id)sender {
-    double value = self.slider.doubleValue;
-    controlSetBaseline(&_control, fabs(value) < .015 ? 0 : value, NSProcessInfo.processInfo.systemUptime);
+- (void)togglePresetEditing:(id)sender {
+    _editingPreset = !_editingPreset;
     [self updateControl];
 }
-- (void)presetChanged:(id)sender {
-    double value = self.presetSlider.doubleValue;
-    controlSetPreset(&_control, fabs(value) < .015 ? 0 : value, NSProcessInfo.processInfo.systemUptime);
-    [NSUserDefaults.standardUserDefaults setDouble:_control.preset forKey:@"fnPreset"];
-    self.presetSlider.toolTip = [@"Fn preset: " stringByAppendingString:filterName(_control.preset)];
-}
-- (void)fnHeld:(BOOL)held {
-    if (held && (!_poweredOn || !self.engine.running)) return;
-    controlSetHeld(&_control, held, NSProcessInfo.processInfo.systemUptime);
-    [self updateControl];
-}
-- (void)scopeChanged:(id)sender {
-    _spotifyOnly = self.scopeControl.selectedSegment == 0;
-    [NSUserDefaults.standardUserDefaults setBool:_spotifyOnly forKey:@"spotifyOnly"];
-    if (_poweredOn) { [self.engine stop]; [self start]; }
-}
-- (void)togglePower:(id)sender {
-    _poweredOn = !_poweredOn;
-    [NSUserDefaults.standardUserDefaults setBool:_poweredOn forKey:@"powerEnabled"];
-    if (_poweredOn) {
-        _stopAt = 0;
-        if (!self.engine.running) [self start];
+- (void)resetKnob:(id)sender {
+    double now = NSProcessInfo.processInfo.systemUptime;
+    if (_editingPreset) {
+        controlSetPreset(&_control, 0, now);
+        [NSUserDefaults.standardUserDefaults setDouble:0 forKey:@"fnPreset"];
     } else {
-        controlReset(&_control, NSProcessInfo.processInfo.systemUptime);
-        // Let the control ramp and DSP smoothing finish before releasing audio.
-        _stopAt = NSProcessInfo.processInfo.systemUptime + .4;
+        controlReset(&_control, now);
     }
     [self updateControl];
 }
-- (void)start {
-    _stopAt = 0;
+- (void)knobChanged:(id)sender {
+    double value = self.knob.doubleValue;
+    if (_editingPreset) {
+        controlSetPreset(&_control, value, NSProcessInfo.processInfo.systemUptime);
+        [NSUserDefaults.standardUserDefaults setDouble:_control.preset forKey:@"fnPreset"];
+    } else {
+        controlSetBaseline(&_control, value, NSProcessInfo.processInfo.systemUptime);
+    }
     [self updateControl];
-    if (![self.engine startWithBundles:_spotifyOnly ? [NSSet setWithObject:@"com.spotify.client"] : nil probe:NO]) {
-        _poweredOn = NO;
+}
+- (void)fnHeld:(BOOL)held {
+    if (held && !self.engine.running) return;
+    controlSetHeld(&_control, held, NSProcessInfo.processInfo.systemUptime);
+    [self updateControl];
+}
+- (void)updateSourceButton {
+    self.sourceButton.image = _spotifyOnly ? self.spotifyIcon : symbol(@"desktopcomputer");
+    self.sourceButton.accessibilityLabel = _spotifyOnly ? @"Spotify only" : @"All Mac audio";
+    self.sourceButton.toolTip = _spotifyOnly ? @"Spotify only — click for all Mac audio" : @"All Mac audio — click for Spotify only";
+}
+- (void)scopeChanged:(id)sender {
+    _spotifyOnly = !_spotifyOnly;
+    [NSUserDefaults.standardUserDefaults setBool:_spotifyOnly forKey:@"spotifyOnly"];
+    [self updateSourceButton];
+    [self start];
+}
+- (void)start {
+    while (!_suspended && ![self.engine startWithBundles:_spotifyOnly ? [NSSet setWithObject:@"com.spotify.client"] : nil probe:NO]) {
+        [self updateControl];
         NSAlert *alert = [NSAlert new];
         alert.messageText = @"Couldn’t start audio";
         alert.informativeText = self.engine.errorMessage ?: @"Try again after checking your audio output.";
-        [alert addButtonWithTitle:@"OK"];
-        [alert runModal];
+        [alert addButtonWithTitle:@"Retry"];
+        [alert addButtonWithTitle:@"Quit"];
+        if ([alert runModal] != NSAlertFirstButtonReturn) { [NSApp terminate:nil]; return; }
     }
     [self updateControl];
 }
 - (void)refresh:(NSTimer *)timer {
     [self updateControl];
-    if (_stopAt && NSProcessInfo.processInfo.systemUptime >= _stopAt) {
-        _stopAt = 0;
-        [self.engine stop];
-    }
     if (++_refreshTick % 15 == 0 && self.engine.running && ![self.engine checkRoute]) {
         controlReset(&_control, NSProcessInfo.processInfo.systemUptime);
-        if (_poweredOn && !_suspended) [self start];
+        if (!_suspended) [self start];
     }
 }
 - (void)suspend:(NSNotification *)notification {
     _suspended = YES;
-    _stopAt = 0;
     [self.fnMonitor disable];
     controlReset(&_control, NSProcessInfo.processInfo.systemUptime);
     [self.engine stop];
@@ -235,7 +247,7 @@ static NSString *filterName(double value) {
     if (!_suspended) return;
     _suspended = NO;
     if (![NSUserDefaults.standardUserDefaults boolForKey:@"fnDisabled"]) [self.fnMonitor enableRequestingPermission:NO];
-    if (_poweredOn) [self start];
+    [self start];
 }
 - (void)applicationWillTerminate:(NSNotification *)notification {
     [self.timer invalidate];

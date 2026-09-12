@@ -61,7 +61,11 @@ The script enables hardened runtime, adds secure timestamps, submits the DMG to 
 
 - `AudioEngine`: capture/playback lifecycle, format validation, and real-time callback.
 - `Filter.h` / `FilterControl.h`: DSP and smooth live/preset transitions.
-- `FnKeyMonitor`: Input Monitoring permission and modifier events.
+- `HoldShortcutMonitor`: Input Monitoring permission and held shortcuts.
 - `AppDelegate` / `FilterKnob`: menu bar, popover, knob, and haptics.
+- `SettingsController`: floating settings window, preset knob, shortcut recorder, colors, and installed-app picker.
+- `WisprActivity`: polls Core Audio process input activity for Flow and its helpers, without capturing audio.
+
+The shortcut and Flow activity share the preset through separate trigger bits. Releasing one cannot restore the baseline while the other remains active; reset suppresses active triggers until both release. Flow activity is checked four times per second using public Core Audio process properties. This detects microphone activity, not a documented Flow dictation-state event.
 
 The app supports stereo float audio and rejects unsupported layouts. It restarts processing when the output changes and resumes after sleep. Bluetooth, physical sleep/wake, protected content, multichannel devices, and latency need broader testing.

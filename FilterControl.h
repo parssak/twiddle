@@ -5,7 +5,8 @@
 // UI-independent control state. A held preset never overwrites the baseline.
 typedef struct {
     double baseline, preset, from, to, started, duration;
-    bool held;
+    bool held, suppressTriggers;
+    unsigned triggers;
 } FilterControl;
 
 static inline double controlValue(const FilterControl *c, double now) {
@@ -32,6 +33,16 @@ static inline void controlSetHeld(FilterControl *c, bool held, double now) {
     controlTransition(c, held ? c->preset : c->baseline, held ? .18 : .4, now);
 }
 
+enum { PresetTriggerShortcut = 1, PresetTriggerWispr = 2 };
+
+static inline void controlSetTrigger(FilterControl *c, unsigned source, bool active, double now) {
+    unsigned triggers = active ? c->triggers | source : c->triggers & ~source;
+    if (triggers == c->triggers) return;
+    c->triggers = triggers;
+    if (!triggers) c->suppressTriggers = false;
+    controlSetHeld(c, triggers && !c->suppressTriggers, now);
+}
+
 static inline void controlSetPreset(FilterControl *c, double value, double now) {
     c->preset = fmin(1, fmax(-1, value));
     if (c->held) controlTransition(c, c->preset, .18, now);
@@ -39,6 +50,7 @@ static inline void controlSetPreset(FilterControl *c, double value, double now) 
 
 static inline void controlReset(FilterControl *c, double now) {
     c->held = false;
+    c->suppressTriggers = c->triggers != 0;
     c->baseline = 0;
     controlTransition(c, 0, .18, now);
 }

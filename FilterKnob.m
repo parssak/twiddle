@@ -9,6 +9,21 @@ static NSPoint radial(NSPoint center, double radius, double degrees) {
 @implementation FilterKnob {
     double _value;
 }
++ (NSString *)labelForValue:(double)value {
+    if (value < -.00001) return [NSString stringWithFormat:@"Low-pass · %.0f Hz", 20000 * pow(115.0 / 20000, -value)];
+    if (value > .00001) return [NSString stringWithFormat:@"High-pass · %.0f Hz", 20 * pow(10000.0 / 20, value)];
+    return @"";
+}
++ (NSColor *)colorForKey:(NSString *)key fallback:(NSColor *)fallback {
+    NSArray *rgb = [NSUserDefaults.standardUserDefaults arrayForKey:key];
+    if (rgb.count != 3) return fallback;
+    for (id value in rgb) if (![value isKindOfClass:NSNumber.class] || !isfinite([value doubleValue])) return fallback;
+    return [NSColor colorWithSRGBRed:fmax(0, fmin(1, [rgb[0] doubleValue]))
+                             green:fmax(0, fmin(1, [rgb[1] doubleValue]))
+                              blue:fmax(0, fmin(1, [rgb[2] doubleValue])) alpha:1];
+}
++ (NSColor *)lowColor { return [self colorForKey:@"lowColor" fallback:NSColor.systemGreenColor]; }
++ (NSColor *)highColor { return [self colorForKey:@"highColor" fallback:NSColor.systemOrangeColor]; }
 - (double)doubleValue { return _value; }
 - (void)setDoubleValue:(double)value {
     value = isfinite(value) ? fmax(-1, fmin(1, value)) : 0;
@@ -19,11 +34,6 @@ static NSPoint radial(NSPoint center, double radius, double degrees) {
 - (void)setEnabled:(BOOL)enabled {
     if (self.enabled == enabled) return;
     [super setEnabled:enabled];
-    self.needsDisplay = YES;
-}
-- (void)setEditingPreset:(BOOL)editingPreset {
-    if (_editingPreset == editingPreset) return;
-    _editingPreset = editingPreset;
     self.needsDisplay = YES;
 }
 - (BOOL)acceptsFirstResponder { return self.enabled; }
@@ -38,7 +48,7 @@ static NSPoint radial(NSPoint center, double radius, double degrees) {
     double from = previous * 12, to = self.doubleValue * 12;
     BOOL crossed = to > from ? floor(to + 1e-9) > floor(from + 1e-9) :
         ceil(to - 1e-9) < ceil(from - 1e-9);
-    if (crossed) [NSHapticFeedbackManager.defaultPerformer
+    if (crossed && self.hapticsEnabled) [NSHapticFeedbackManager.defaultPerformer
         performFeedbackPattern:NSHapticFeedbackPatternAlignment
         performanceTime:NSHapticFeedbackPerformanceTimeNow];
     [self sendAction:self.action to:self.target];
@@ -88,9 +98,7 @@ static NSPoint radial(NSPoint center, double radius, double degrees) {
     [transform scaleBy:scale];
     [transform concat];
     NSPoint center = NSZeroPoint;
-    NSColor *accent = self.editingPreset ? NSColor.systemPurpleColor :
-        (_value > 0 ? NSColor.systemOrangeColor : NSColor.systemGreenColor);
-    if (!self.enabled) accent = NSColor.disabledControlTextColor;
+    NSColor *accent = _value > 0 ? FilterKnob.highColor : FilterKnob.lowColor;
     for (int i = 0; i <= 24; i++) {
         double angle = 225 - i * 270.0 / 24;
         NSBezierPath *tick = [NSBezierPath bezierPath];
@@ -126,10 +134,10 @@ static NSPoint radial(NSPoint center, double radius, double degrees) {
     NSShadow *shadow = [NSShadow new];
     shadow.shadowColor = [NSColor.blackColor colorWithAlphaComponent:.5];
     shadow.shadowBlurRadius = 10;
-    shadow.shadowOffset = NSMakeSize(0, -5);
+    shadow.shadowOffset = NSZeroSize;
     [shadow set];
     [[NSColor colorWithWhite:.12 alpha:1] setFill];
-    [[NSBezierPath bezierPathWithOvalInRect:NSOffsetRect(body, 0, -3)] fill];
+    [[NSBezierPath bezierPathWithOvalInRect:body] fill];
     [NSGraphicsContext restoreGraphicsState];
     NSGradient *rim = [[NSGradient alloc] initWithColors:@[
         [NSColor colorWithWhite:.95 alpha:1], [NSColor colorWithWhite:.58 alpha:1],

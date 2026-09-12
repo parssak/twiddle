@@ -1,12 +1,12 @@
 #include "Filter.h"
 #include "FilterControl.h"
 #include <stdio.h>
-#import "FnKeyMonitor.h"
+#import "HoldShortcutMonitor.h"
 #import <CoreGraphics/CoreGraphics.h>
 
-// Exercise the same modifier-event decoder without listening to or injecting
+// Exercise the same shortcut-event decoder without listening to or injecting
 // events into the user's desktop.
-@interface FnKeyMonitor (TestEvents)
+@interface HoldShortcutMonitor (TestEvents)
 - (void)receiveType:(CGEventType)type event:(CGEventRef)event;
 @end
 
@@ -45,8 +45,25 @@ static int controlTests(void) {
     controlSetHeld(&c, false, 8);
     CHECK(fabs(controlValue(&c, 8.5) - .6) < 1e-6);
 
+    FilterControl overlap = {.preset = -.8};
+    controlSetBaseline(&overlap, .2, 0);
+    controlSetTrigger(&overlap, PresetTriggerShortcut, true, 1);
+    controlSetTrigger(&overlap, PresetTriggerWispr, true, 1.1);
+    controlSetTrigger(&overlap, PresetTriggerShortcut, false, 1.2);
+    CHECK(overlap.held && fabs(controlValue(&overlap, 1.3) + .8) < 1e-6);
+    controlSetTrigger(&overlap, PresetTriggerWispr, false, 2);
+    CHECK(!overlap.held && fabs(controlValue(&overlap, 2.5) - .2) < 1e-6);
+    controlSetTrigger(&overlap, PresetTriggerWispr, true, 3);
+    controlReset(&overlap, 3.3);
+    controlSetTrigger(&overlap, PresetTriggerShortcut, true, 3.4);
+    CHECK(!overlap.held); // Reset stays neutral until both sources have released.
+    controlSetTrigger(&overlap, PresetTriggerWispr, false, 3.5);
+    controlSetTrigger(&overlap, PresetTriggerShortcut, false, 3.6);
+    controlSetTrigger(&overlap, PresetTriggerWispr, true, 4);
+    CHECK(overlap.held && fabs(controlValue(&overlap, 4.3) + .8) < 1e-6);
+
     @autoreleasepool {
-        FnKeyMonitor *monitor = [FnKeyMonitor new];
+        HoldShortcutMonitor *monitor = [HoldShortcutMonitor new];
         __block unsigned changes = 0;
         __block BOOL held = NO;
         monitor.changed = ^(BOOL down) { changes++; held = down; };
@@ -69,6 +86,67 @@ static int controlTests(void) {
         [monitor receiveType:kCGEventFlagsChanged event:event];
         [monitor disable];
         CHECK(changes == 4 && !held); // Disabling cannot leave the preset held.
+        CFRelease(event);
+        event = CGEventCreateKeyboardEvent(NULL, 40, true);
+        CHECK(event != NULL);
+        // A recorded key chord releases when either its key or modifier is released.
+        [monitor setKeyCode:40 modifiers:kCGEventFlagMaskAlternate]; // Option-K
+        CGEventSetIntegerValueField(event, kCGKeyboardEventKeycode, 40);
+        CGEventSetFlags(event, kCGEventFlagMaskAlternate);
+        [monitor receiveType:kCGEventKeyDown event:event];
+        CHECK(held && changes == 5);
+        CGEventSetIntegerValueField(event, kCGKeyboardEventAutorepeat, 1);
+        [monitor receiveType:kCGEventKeyDown event:event];
+        CHECK(held && changes == 5);
+        CGEventSetFlags(event, 0);
+        [monitor receiveType:kCGEventFlagsChanged event:event];
+        CHECK(!held && changes == 6);
+        [monitor receiveType:kCGEventKeyUp event:event];
+        CGEventSetFlags(event, kCGEventFlagMaskAlternate);
+        [monitor receiveType:kCGEventFlagsChanged event:event];
+        CHECK(!held); // A modifier alone cannot reactivate a released key.
+        [monitor receiveType:kCGEventKeyDown event:event];
+        CHECK(!held); // An autorepeat cannot initiate a new hold.
+        CGEventSetIntegerValueField(event, kCGKeyboardEventAutorepeat, 0);
+        [monitor receiveType:kCGEventKeyDown event:event];
+        CHECK(held);
+        monitor.recording = YES;
+        CHECK(!held);
+        [monitor receiveType:kCGEventKeyDown event:event];
+        CHECK(!held); // Recording cannot preview the filter.
+        monitor.recording = NO;
+        [monitor receiveType:kCGEventKeyUp event:event];
+        [monitor receiveType:kCGEventKeyDown event:event];
+        CHECK(held);
+        [monitor receiveType:kCGEventTapDisabledByTimeout event:event];
+        CHECK(!held); // Tap interruptions cannot leave a held preset stuck.
+        [monitor setKeyCode:-1 modifiers:kCGEventFlagMaskControl | kCGEventFlagMaskShift];
+        CGEventSetFlags(event, kCGEventFlagMaskControl);
+        [monitor receiveType:kCGEventFlagsChanged event:event];
+        CHECK(!held);
+        CGEventSetFlags(event, kCGEventFlagMaskControl | kCGEventFlagMaskShift);
+        [monitor receiveType:kCGEventFlagsChanged event:event];
+        CHECK(held);
+        [monitor setKeyCode:-1 modifiers:kCGEventFlagMaskSecondaryFn];
+        CHECK(!held); // Changing a shortcut releases the old hold.
+        CGEventSetIntegerValueField(event, kCGKeyboardEventKeycode, 123);
+        CGEventSetFlags(event, kCGEventFlagMaskSecondaryFn);
+        [monitor receiveType:kCGEventKeyDown event:event];
+        CHECK(!held); // Arrow keys carry the Fn flag but must not trigger a modifier-only shortcut.
+        [monitor setKeyCode:40 modifiers:kCGEventFlagMaskSecondaryFn];
+        CGEventSetIntegerValueField(event, kCGKeyboardEventKeycode, 40);
+        [monitor receiveType:kCGEventKeyDown event:event];
+        CHECK(!held); // Nor may a key event synthesize the physical Fn modifier in a chord.
+        [monitor receiveType:kCGEventFlagsChanged event:event];
+        CHECK(held);
+        [monitor receiveType:kCGEventKeyUp event:event];
+        CHECK(!held);
+        [monitor setKeyCode:-1 modifiers:0];
+        CHECK(!monitor.configured && !held);
+        [monitor receiveType:kCGEventFlagsChanged event:event];
+        [monitor receiveType:kCGEventKeyDown event:event];
+        CHECK(!held); // None cannot trigger or request Input Monitoring.
+        CHECK(![monitor enableRequestingPermission:NO]);
         CFRelease(event);
     }
     puts("Hold/release, repeated modifiers, reset interruption, and listener cleanup checks passed.");

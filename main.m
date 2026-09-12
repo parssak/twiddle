@@ -25,7 +25,7 @@ int main(int argc, const char *argv[]) {
         NSMenuItem *item = [NSMenuItem new];
         [menu addItem:item];
         NSMenu *appMenu = [NSMenu new];
-        [appMenu addItemWithTitle:@"Quit Lowpasser" action:@selector(terminate:) keyEquivalent:@"q"];
+        [appMenu addItemWithTitle:@"Quit Twiddle" action:@selector(terminate:) keyEquivalent:@"q"];
         item.submenu = appMenu;
         app.mainMenu = menu;
         [app run];

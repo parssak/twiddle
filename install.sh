@@ -3,13 +3,13 @@ set -euo pipefail
 cd "$(dirname "$0")"
 bash build.sh
 
-destination=/Applications/Lowpasser.app
-staging=$(mktemp -d /Applications/.lowpasser.XXXXXX)
+destination=/Applications/Twiddle.app
+staging=$(mktemp -d /Applications/.twiddle.XXXXXX)
 trap 'rm -rf "$staging"' EXIT
-ditto build/Lowpasser.app "$staging/Lowpasser.app"
-codesign --verify --strict "$staging/Lowpasser.app"
+ditto build/Twiddle.app "$staging/Twiddle.app"
+codesign --verify --strict "$staging/Twiddle.app"
 if [[ -e "$destination" ]]; then mv "$destination" "$staging/previous.app"; fi
-if ! mv "$staging/Lowpasser.app" "$destination"; then
+if ! mv "$staging/Twiddle.app" "$destination"; then
     if [[ -e "$staging/previous.app" ]]; then mv "$staging/previous.app" "$destination"; fi
     exit 1
 fi

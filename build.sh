@@ -1,22 +1,22 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-app="$PWD/build/Lowpasser.app"
+app="$PWD/build/Twiddle.app"
 mkdir -p "$PWD/build"
-staging=$(mktemp -d "$PWD/build/.lowpasser.XXXXXX")
+staging=$(mktemp -d "$PWD/build/.twiddle.XXXXXX")
 trap 'rm -rf "$staging"' EXIT
-candidate="$staging/Lowpasser.app"
+candidate="$staging/Twiddle.app"
 mkdir -p "$candidate/Contents/MacOS"
 clang -fobjc-arc -O2 -Wall -Wextra -Wno-unused-parameter -mmacosx-version-min=26.0 \
     -framework Cocoa -framework CoreAudio -framework CoreGraphics \
     main.m AppDelegate.m FilterKnob.m AudioEngine.m FnKeyMonitor.m Tests.m \
-    -o "$candidate/Contents/MacOS/Lowpasser"
+    -o "$candidate/Contents/MacOS/Twiddle"
 cp Info.plist "$candidate/Contents/Info.plist"
 mkdir -p "$candidate/Contents/Resources"
 cp Assets/AppIcon.icns "$candidate/Contents/Resources/AppIcon.icns"
 cp Assets/KnobMetal.png "$candidate/Contents/Resources/KnobMetal.png"
 bash scripts/sign-app.sh "$candidate"
-"$candidate/Contents/MacOS/Lowpasser" --self-test
+"$candidate/Contents/MacOS/Twiddle" --self-test
 if [[ -e "$app" ]]; then mv "$app" "$staging/previous.app"; fi
 if ! mv "$candidate" "$app"; then
     if [[ -e "$staging/previous.app" ]]; then mv "$staging/previous.app" "$app"; fi

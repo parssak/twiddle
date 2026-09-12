@@ -1,4 +1,4 @@
-# Lowpasser
+# Twiddle
 
 A dependency-free macOS app that captures audio sent to the current output using a Core Audio process tap,
 mutes the original while active, applies a 12 dB/octave low/high-pass filter, and
@@ -7,14 +7,14 @@ The tap targets the output stream directly so capture and playback sample rates 
 
 ```sh
 bash build.sh
-open build/Lowpasser.app
+open build/Twiddle.app
 ```
 
 To install in Applications for Spotlight and Raycast, quit any running copy, then:
 
 ```sh
 bash install.sh
-open /Applications/Lowpasser.app
+open /Applications/Twiddle.app
 ```
 
 Run the same install command after changes to rebuild and update the installed app.
@@ -23,7 +23,7 @@ It preserves the local signing identity used for macOS permissions.
 Click the filter icon in the menu bar to open the native glass popover. The source
 button shows the current selection; click it to cycle between Spotify only and all
 Mac audio. This choice is remembered. Filtering stays active while the app is running;
-quit Lowpasser to release the route. Grant system audio recording permission when macOS
+quit Twiddle to release the route. Grant system audio recording permission when macOS
 asks, then reopen if required.
 
 The rotary knob controls and displays the current filter. Turn counterclockwise to
@@ -43,7 +43,7 @@ a hold still preserves the return setting.
 The DSP adds a short smoothing stage to these transitions.
 
 Right-click the menu bar icon for **Fn shortcut**, **Input Monitoring…**, and **Quit
-Lowpasser**. Enable Input Monitoring for Lowpasser in System Settings if needed, then
+Twiddle**. Enable Input Monitoring for Twiddle in System Settings if needed, then
 reopen if macOS asks. An orange cog means the shortcut isn't enabled. The listener
 observes only modifier changes and doesn't suppress the keyboard's existing Fn/Globe
 action; set "Press Globe key to" to "Do Nothing" in Keyboard settings if desired.
@@ -55,10 +55,10 @@ changes and resumes after sleep. Bluetooth, physical sleep/wake,
 protected content, multichannel devices, and latency are not validated. The app doesn't
 change your default output, save audio, or use the network.
 
-`build/Lowpasser.app/Contents/MacOS/Lowpasser --probe` checks the current route's formats
+`build/Twiddle.app/Contents/MacOS/Twiddle --probe` checks the current route's formats
 without starting audio capture. The build checks filter behavior at 44.1 and 48 kHz.
 
-The build uses a persistent **Lowpasser Local Development** certificate instead of
+The build uses a persistent **Twiddle Local Development** certificate instead of
 ad-hoc signing. `scripts/sign-app.sh` creates it once in a dedicated local keychain,
 then reuses it. The app's designated requirement pins that certificate and the bundle
 identifier, so its code identity remains the same when its contents change. Switching
@@ -66,8 +66,14 @@ from the old ad-hoc build requires granting permissions once for this new identi
 
 Signing state lives outside the repository:
 
-- Certificate and owner-only keychain password: `~/Library/Application Support/Lowpasser/Signing/`.
-- Non-exportable private key: `~/Library/Keychains/lowpasser-local-signing.keychain-db`.
+- Certificate and owner-only keychain password: `~/Library/Application Support/Twiddle/Signing/`.
+- Non-exportable private key: `~/Library/Keychains/twiddle-local-signing.keychain-db`.
+
+Existing installations from before the rename retain their `Lowpasser` signing folder,
+`lowpasser-local-signing.keychain-db` keychain, and original certificate. The internal
+bundle identifier remains `com.parssa.lowpasser.poc` so saved preferences and macOS
+permission grants survive the rename. All visible app names and executable paths use
+Twiddle.
 
 Keep those files to preserve the identity. The certificate is trusted only for code
 signing in your user account, and this remains a local development build, not an

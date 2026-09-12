@@ -158,7 +158,7 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
         description.processRestoreEnabled = YES;
         NSLog(@"Filtering app identities: %@", [[bundles.allObjects sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@", "]);
     }
-    description.name = @"Lowpasser system audio";
+    description.name = @"Twiddle system audio";
     description.private = YES;
     description.muteBehavior = CATapMutedWhenTapped;
     if (![self check:AudioHardwareCreateProcessTap(description, &_tap) operation:@"Create audio tap"]) return NO;
@@ -172,7 +172,7 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     NSString *tapUID = stringProperty(_tap, kAudioTapPropertyUID);
     if (!tapUID || !isfinite(format.mSampleRate) || format.mSampleRate <= 0) { [self stop]; self.errorMessage = @"Invalid tap format."; return NO; }
     NSDictionary *config = @{
-        @kAudioAggregateDeviceNameKey: @"Lowpasser private audio",
+        @kAudioAggregateDeviceNameKey: @"Twiddle private audio",
         @kAudioAggregateDeviceUIDKey: NSUUID.UUID.UUIDString,
         @kAudioAggregateDeviceIsPrivateKey: @YES,
         @kAudioAggregateDeviceMainSubDeviceKey: outputUID,

@@ -4,15 +4,21 @@ set +x
 set -euo pipefail
 umask 077
 
-app=${1:?Usage: bash scripts/sign-app.sh /path/to/Lowpasser.app}
-signing_dir="$HOME/Library/Application Support/Lowpasser/Signing"
-signing_keychain="$HOME/Library/Keychains/lowpasser-local-signing.keychain-db"
+app=${1:?Usage: bash scripts/sign-app.sh /path/to/Twiddle.app}
+signing_dir="$HOME/Library/Application Support/Twiddle/Signing"
+signing_keychain="$HOME/Library/Keychains/twiddle-local-signing.keychain-db"
+# Preserve the existing certificate after the Lowpasser -> Twiddle rename.
+# New checkouts create Twiddle signing state; existing installs keep TCC identity.
+if [[ -e "$HOME/Library/Application Support/Lowpasser/Signing" || -e "$HOME/Library/Keychains/lowpasser-local-signing.keychain-db" ]]; then
+    signing_dir="$HOME/Library/Application Support/Lowpasser/Signing"
+    signing_keychain="$HOME/Library/Keychains/lowpasser-local-signing.keychain-db"
+fi
 certificate="$signing_dir/certificate.pem"
 password_file="$signing_dir/keychain-password"
 
 if [[ ! -f "$certificate" ]]; then
     if [[ -e "$signing_keychain" || -e "$password_file" ]]; then
-        echo "Incomplete Lowpasser signing setup in $signing_dir; refusing to replace its identity." >&2
+        echo "Incomplete Twiddle signing setup in $signing_dir; refusing to replace its identity." >&2
         exit 1
     fi
     mkdir -p "$signing_dir"
@@ -30,7 +36,7 @@ prompt = no
 distinguished_name = subject
 x509_extensions = code_signing
 [subject]
-CN = Lowpasser Local Development
+CN = Twiddle Local Development
 [code_signing]
 basicConstraints = critical,CA:FALSE
 keyUsage = critical,digitalSignature
@@ -42,7 +48,7 @@ CONFIG
         -out "$certificate" 2> "$temporary/openssl.log"
     /usr/bin/openssl rand -base64 32 > "$temporary/transfer-password"
     /usr/bin/openssl pkcs12 -export -inkey "$temporary/private-key.pem" -in "$certificate" \
-        -name "Lowpasser Local Development" -out "$temporary/identity.p12" \
+        -name "Twiddle Local Development" -out "$temporary/identity.p12" \
         -passout "file:$temporary/transfer-password"
     IFS= read -r transfer_password < "$temporary/transfer-password"
     security import "$temporary/identity.p12" -k "$signing_keychain" -f pkcs12 \
@@ -53,7 +59,7 @@ CONFIG
 fi
 
 if [[ ! -f "$password_file" || ! -f "$signing_keychain" ]]; then
-    echo "Lowpasser's existing signing keychain is missing. Restore it; do not generate a replacement." >&2
+    echo "Twiddle's existing signing keychain is missing. Restore it; do not generate a replacement." >&2
     exit 1
 fi
 IFS= read -r signing_password < "$password_file"

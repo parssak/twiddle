@@ -21,13 +21,13 @@ static CGEventRef modifierEvent(CGEventTapProxy proxy, CGEventType type, CGEvent
     if (self.enabled) return YES;
     [self disable];
     if (!CGPreflightListenEventAccess() && !(request && CGRequestListenEventAccess())) {
-        self.errorMessage = @"Allow Lowpasser in System Settings → Privacy & Security → Input Monitoring, then reopen it.";
+        self.errorMessage = @"Allow Twiddle in System Settings → Privacy & Security → Input Monitoring, then reopen it.";
         return NO;
     }
     _tap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionListenOnly,
         CGEventMaskBit(kCGEventFlagsChanged), modifierEvent, (__bridge void *)self);
     if (!_tap) {
-        self.errorMessage = @"Fn listener unavailable. Check Input Monitoring permission and reopen Lowpasser.";
+        self.errorMessage = @"Fn listener unavailable. Check Input Monitoring permission and reopen Twiddle.";
         return NO;
     }
     _source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, _tap, 0);

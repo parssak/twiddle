@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-    <key>CFBundleExecutable</key><string>Lowpasser</string>
+    <key>CFBundleExecutable</key><string>Twiddle</string>
     <key>CFBundleIdentifier</key><string>com.parssa.lowpasser.poc</string>
-    <key>CFBundleName</key><string>Lowpasser</string>
+    <key>CFBundleName</key><string>Twiddle</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>CFBundleShortVersionString</key><string>0.1</string>
@@ -11,5 +11,5 @@
     <key>NSHighResolutionCapable</key><true/>
     <key>LSUIElement</key><true/>
     <key>CFBundleIconFile</key><string>AppIcon</string>
-    <key>NSAudioCaptureUsageDescription</key><string>Lowpasser filters your Mac audio live and plays it through your current output. No audio is saved or uploaded.</string>
+    <key>NSAudioCaptureUsageDescription</key><string>Twiddle filters your Mac audio live and plays it through your current output. No audio is saved or uploaded.</string>
 </dict></plist>

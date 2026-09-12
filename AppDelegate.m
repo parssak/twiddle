@@ -65,8 +65,8 @@ static NSString *filterName(double value) {
     if (![defaults boolForKey:@"fnDisabled"]) [self.fnMonitor enableRequestingPermission:NO];
     self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
     self.statusItem.button.image = knobStatusImage(0);
-    self.statusItem.button.accessibilityLabel = @"Lowpasser";
-    self.statusItem.button.toolTip = @"Lowpasser";
+    self.statusItem.button.accessibilityLabel = @"Twiddle";
+    self.statusItem.button.toolTip = @"Twiddle";
     self.statusItem.button.target = self;
     self.statusItem.button.action = @selector(statusClicked:);
     [self.statusItem.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp];
@@ -138,7 +138,7 @@ static NSString *filterName(double value) {
     NSMenuItem *permissions = [menu addItemWithTitle:@"Input Monitoring…" action:@selector(openPermissions:) keyEquivalent:@""];
     permissions.target = self;
     [menu addItem:NSMenuItem.separatorItem];
-    [menu addItemWithTitle:@"Quit Lowpasser" action:@selector(terminate:) keyEquivalent:@"q"];
+    [menu addItemWithTitle:@"Quit Twiddle" action:@selector(terminate:) keyEquivalent:@"q"];
     self.statusItem.menu = menu;
     [self.statusItem.button performClick:nil];
     self.statusItem.menu = nil;

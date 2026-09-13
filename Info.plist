@@ -12,4 +12,5 @@
     <key>LSUIElement</key><true/>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>NSAudioCaptureUsageDescription</key><string>Twiddle filters your Mac audio live and plays it through your current output. No audio is saved or uploaded.</string>
+    <key>NSAppleEventsUsageDescription</key><string>Twiddle reads the current song from Spotify to show it in the menu bar popover.</string>
 </dict></plist>

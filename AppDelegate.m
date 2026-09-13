@@ -1,10 +1,182 @@
 #import "AppDelegate.h"
 #import "AudioEngine.h"
 #import "HoldShortcutMonitor.h"
+#import "GlobalFilterHotkeys.h"
 #import "FilterKnob.h"
 #import "SettingsController.h"
-#import "WisprActivity.h"
+#import "MicrophoneActivity.h"
+#import "SpotifyNowPlaying.h"
+#import <ServiceManagement/ServiceManagement.h>
+#import <CoreImage/CoreImage.h>
+#import <QuartzCore/QuartzCore.h>
 #include "FilterControl.h"
+
+typedef NS_ENUM(NSInteger, FooterMode) {
+    FooterModeNone,
+    FooterModeFilter,
+    FooterModeNowPlaying,
+};
+static const NSTimeInterval GlobalHotkeyPopoverDuration = 1.4;
+
+@interface MarqueeLabel : NSView
+@property (copy, nonatomic) NSString *stringValue;
+@property (nonatomic, getter=isActive) BOOL active;
+- (void)restartScroll;
+- (void)restartScrollAfterDelay:(NSTimeInterval)delay;
+@end
+
+@implementation MarqueeLabel {
+    NSAttributedString *_text;
+    NSTrackingArea *_trackingArea;
+    NSTimer *_scrollTimer;
+    CAGradientLayer *_edgeMask;
+    BOOL _hovered;
+    CGFloat _textWidth, _overflow, _offset;
+    NSSize _layoutSize;
+}
+- (instancetype)initWithFrame:(NSRect)frame {
+    if ((self = [super initWithFrame:frame])) {
+        self.wantsLayer = YES;
+        self.layer.masksToBounds = YES;
+        _edgeMask = [CAGradientLayer layer];
+        _edgeMask.startPoint = CGPointMake(0, .5);
+        _edgeMask.endPoint = CGPointMake(1, .5);
+    }
+    return self;
+}
+- (void)dealloc { [_scrollTimer invalidate]; }
+- (void)setStringValue:(NSString *)stringValue {
+    stringValue = [stringValue copy] ?: @"";
+    if ([_stringValue isEqualToString:stringValue]) return;
+    _stringValue = stringValue;
+    _text = [[NSAttributedString alloc] initWithString:stringValue attributes:@{
+        NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightMedium],
+        NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
+    }];
+    _textWidth = ceil(_text.size.width) + 4;
+    self.toolTip = stringValue.length ? stringValue : nil;
+    [self layoutLabel];
+}
+- (void)setActive:(BOOL)active {
+    if (_active == active) return;
+    _active = active;
+    if (active && _hovered) [self restartScrollAfterDelay:.5];
+    else [self restartScroll];
+}
+- (void)layout {
+    [super layout];
+    if (!NSEqualSizes(_layoutSize, self.bounds.size)) [self layoutLabel];
+}
+- (void)drawRect:(NSRect)dirtyRect {
+    // Redraw the complete string at its current offset. Moving an NSTextField
+    // can move only the portion AppKit rasterized inside the original clip.
+    CGFloat x = _overflow > 0 ? 2 - _offset : (NSWidth(self.bounds) - _text.size.width) / 2;
+    CGFloat y = floor((NSHeight(self.bounds) - _text.size.height) / 2);
+    [_text drawAtPoint:NSMakePoint(x, y)];
+}
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas];
+    if (_trackingArea) [self removeTrackingArea:_trackingArea];
+    _trackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect
+        options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInActiveApp | NSTrackingInVisibleRect
+        owner:self userInfo:nil];
+    [self addTrackingArea:_trackingArea];
+}
+- (void)mouseEntered:(NSEvent *)event {
+    _hovered = YES;
+    [self restartScrollAfterDelay:.5];
+}
+- (void)mouseExited:(NSEvent *)event {
+    _hovered = NO;
+    [self restartScroll];
+}
+- (void)layoutLabel {
+    _layoutSize = self.bounds.size;
+    _overflow = fmax(0, _textWidth - NSWidth(self.bounds));
+    if (self.active && _hovered) [self restartScrollAfterDelay:.5];
+    else [self restartScroll];
+}
+- (void)updateEdgeFade {
+    CGFloat fadeWidth = fmin(8, NSWidth(self.bounds) / 2);
+    CGFloat left = fmin(fadeWidth, _offset) / fmax(1, NSWidth(self.bounds));
+    CGFloat right = fmin(fadeWidth, _overflow - _offset) / fmax(1, NSWidth(self.bounds));
+    [CATransaction begin];
+    CATransaction.disableActions = YES;
+    _edgeMask.frame = self.bounds;
+    _edgeMask.colors = @[(id)(left > 0 ? NSColor.clearColor : NSColor.blackColor).CGColor,
+        (id)NSColor.blackColor.CGColor, (id)NSColor.blackColor.CGColor,
+        (id)(right > 0 ? NSColor.clearColor : NSColor.blackColor).CGColor];
+    _edgeMask.locations = @[@0, @(left), @(1 - right), @1];
+    self.layer.mask = _overflow > 0 ? _edgeMask : nil;
+    [CATransaction commit];
+}
+- (void)restartScrollAfterDelay:(NSTimeInterval)delay {
+    [self restartScroll];
+    if (!self.active || !_hovered || _overflow <= 0) return;
+    NSTimeInterval start = CACurrentMediaTime() + delay;
+    __weak MarqueeLabel *weakSelf = self;
+    _scrollTimer = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *timer) {
+        MarqueeLabel *self = weakSelf;
+        if (!self) { [timer invalidate]; return; }
+        self->_offset = fmin(self->_overflow, fmax(0, CACurrentMediaTime() - start) * 24);
+        [self updateEdgeFade];
+        self.needsDisplay = YES;
+        if (self->_offset >= self->_overflow) {
+            [timer invalidate];
+            self->_scrollTimer = nil;
+        }
+    }];
+    [NSRunLoop.mainRunLoop addTimer:_scrollTimer forMode:NSRunLoopCommonModes];
+}
+- (void)restartScroll {
+    [_scrollTimer invalidate];
+    _scrollTimer = nil;
+    _offset = 0;
+    [self updateEdgeFade];
+    self.needsDisplay = YES;
+}
+- (BOOL)isAccessibilityElement { return YES; }
+- (NSString *)accessibilityRole { return NSAccessibilityStaticTextRole; }
+- (id)accessibilityValue { return self.stringValue; }
+@end
+
+static void animateBlur(NSView *view, CGFloat from, CGFloat to, NSTimeInterval duration) {
+    CIFilter *blur = [CIFilter filterWithName:@"CIGaussianBlur"];
+    blur.name = @"footerBlur";
+    [blur setValue:@(to) forKey:kCIInputRadiusKey];
+    [CATransaction begin];
+    CATransaction.disableActions = YES;
+    view.layer.filters = @[blur];
+    [CATransaction commit];
+    CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"filters.footerBlur.inputRadius"];
+    animation.fromValue = @(from);
+    animation.toValue = @(to);
+    animation.duration = duration;
+    animation.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+    [view.layer addAnimation:animation forKey:@"footerBlur"];
+}
+
+static void animateScaleIn(NSView *view, NSTimeInterval duration) {
+    [CATransaction begin];
+    CATransaction.disableActions = YES;
+    view.layer.transform = CATransform3DIdentity;
+    [CATransaction commit];
+    CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
+    animation.fromValue = @.97;
+    animation.toValue = @1;
+    animation.duration = duration;
+    animation.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+    [view.layer addAnimation:animation forKey:@"footerScale"];
+}
+
+static void clearBlur(NSView *view) {
+    [view.layer removeAnimationForKey:@"footerBlur"];
+    [view.layer removeAnimationForKey:@"footerScale"];
+    [CATransaction begin];
+    CATransaction.disableActions = YES;
+    view.layer.filters = nil;
+    [CATransaction commit];
+}
 
 @interface AppDelegate () <NSPopoverDelegate> {
     FilterControl _control;
@@ -12,9 +184,12 @@
     NSInteger _statusAngle;
     BOOL _selectedOnly, _suspended;
     BOOL _showSettingsAfterPopoverCloses;
+    NSTimeInterval _filterReadoutUntil;
+    NSUInteger _footerTransition;
 }
 @property AudioEngine *engine;
 @property HoldShortcutMonitor *shortcutMonitor;
+@property GlobalFilterHotkeys *globalFilterHotkeys;
 @property NSStatusItem *statusItem;
 @property NSPopover *popover;
 @property NSButton *sourceButton;
@@ -23,8 +198,13 @@
 @property SettingsController *settings;
 @property FilterKnob *knob;
 @property NSTextField *readout;
+@property MarqueeLabel *nowPlayingReadout;
 @property NSButton *settingsButton;
+@property SpotifyNowPlaying *spotifyNowPlaying;
+@property (copy) NSString *nowPlayingText;
+@property FooterMode footerMode;
 @property NSTimer *timer;
+@property NSTimer *globalHotkeyPopoverTimer;
 @end
 
 static NSImage *symbol(NSString *name) {
@@ -53,22 +233,46 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 @implementation AppDelegate
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    // Register login once for new installs; never undo a user's later opt-out.
+    if (![defaults boolForKey:@"loginDefaultApplied"]) {
+        BOOL freshInstall = [defaults persistentDomainForName:NSBundle.mainBundle.bundleIdentifier].count == 0;
+        [defaults setBool:YES forKey:@"loginDefaultApplied"];
+        if (freshInstall && SMAppService.mainAppService.status == SMAppServiceStatusNotRegistered) {
+            NSError *error = nil;
+            if (![SMAppService.mainAppService registerAndReturnError:&error])
+                NSLog(@"Could not enable Open at Login: %@", error.localizedDescription);
+        }
+    }
     [defaults registerDefaults:@{@"hapticsEnabled": @YES}];
-    _control.preset = [defaults objectForKey:@"fnPreset"] ? [defaults doubleForKey:@"fnPreset"] : -.72;
-    if (!isfinite(_control.preset)) _control.preset = -.72;
+    [defaults registerDefaults:@{@"microphoneScope": @"wispr"}];
+    if (![defaults objectForKey:@"microphoneEnabled"]) {
+        BOOL installed = [NSWorkspace.sharedWorkspace URLForApplicationWithBundleIdentifier:@"com.electron.wispr-flow"] != nil;
+        NSNumber *previous = [defaults objectForKey:@"followWisprFlow"];
+        [defaults setBool:previous ? previous.boolValue : installed forKey:@"microphoneEnabled"];
+    }
+    double defaultPreset = [FilterKnob defaultPresetValue];
+    _control.preset = [defaults objectForKey:@"fnPreset"] ? [defaults doubleForKey:@"fnPreset"] : defaultPreset;
+    if (!isfinite(_control.preset)) _control.preset = defaultPreset;
     _control.preset = fmin(1, fmax(-1, _control.preset));
     _selectedOnly = [defaults objectForKey:@"spotifyOnly"] ? [defaults boolForKey:@"spotifyOnly"] : YES;
     self.selectedBundle = [defaults stringForKey:@"selectedBundle"] ?: @"com.spotify.client";
-    self.shortcutTitle = [defaults stringForKey:@"holdShortcutTitle"] ?: @"Fn";
+    self.shortcutTitle = [defaults stringForKey:@"holdShortcutTitle"] ?: @"None";
     self.engine = [AudioEngine new];
+    self.spotifyNowPlaying = [SpotifyNowPlaying new];
     self.shortcutMonitor = [HoldShortcutMonitor new];
+    self.globalFilterHotkeys = [GlobalFilterHotkeys new];
     __weak AppDelegate *weakSelf = self;
     self.shortcutMonitor.changed = ^(BOOL held) { [weakSelf shortcutHeld:held]; };
+    self.globalFilterHotkeys.performed = ^(GlobalFilterHotkeyAction action) {
+        [weakSelf performGlobalFilterHotkey:action];
+    };
+    if (![self.globalFilterHotkeys start]) NSLog(@"%@", self.globalFilterHotkeys.errorMessage);
     if ([defaults objectForKey:@"holdShortcutKeyCode"]) {
         [self.shortcutMonitor setKeyCode:[defaults integerForKey:@"holdShortcutKeyCode"]
                         modifiers:(CGEventFlags)[defaults integerForKey:@"holdShortcutModifiers"]];
     }
     self.settings = [SettingsController new];
+    self.settings.menuBarSettingsRequested = ^{ [weakSelf openMenuBarSettings:nil]; };
     self.settings.presetChanged = ^(double value) {
         AppDelegate *self = weakSelf;
         if (!self) return;
@@ -77,7 +281,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         [self updateControl];
     };
     self.settings.colorsChanged = ^{ weakSelf.knob.needsDisplay = YES; };
-    self.settings.wisprChanged = ^(BOOL enabled) { [weakSelf updateWispr]; };
+    self.settings.microphoneChanged = ^ { [weakSelf updateMicrophone]; };
     self.settings.hapticsChanged = ^(BOOL enabled) { weakSelf.knob.hapticsEnabled = enabled; };
     self.settings.recordingChanged = ^(BOOL recording) { weakSelf.shortcutMonitor.recording = recording; };
     self.settings.appChanged = ^(NSString *bundle) {
@@ -86,6 +290,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         self.selectedBundle = bundle;
         [defaults setObject:bundle forKey:@"selectedBundle"];
         [self updateSourceButton];
+        [self refreshNowPlaying];
         if (self->_selectedOnly) [self start];
     };
     self.settings.shortcutChanged = ^(NSInteger keyCode, NSEventModifierFlags flags, NSString *title) {
@@ -102,13 +307,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         [self updateControl];
     };
     if (![defaults boolForKey:@"fnDisabled"]) [self.shortcutMonitor enableRequestingPermission:NO];
-    self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
-    self.statusItem.button.image = knobStatusImage(0);
-    self.statusItem.button.accessibilityLabel = @"Twiddle";
-    self.statusItem.button.toolTip = @"Twiddle";
-    self.statusItem.button.target = self;
-    self.statusItem.button.action = @selector(statusClicked:);
-    [self.statusItem.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp];
+    [self installStatusItem];
     NSMenu *mainMenu = [NSMenu new];
     NSMenuItem *applicationMenu = [NSMenuItem new];
     applicationMenu.submenu = [NSMenu new];
@@ -127,6 +326,23 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [workspace addObserver:self selector:@selector(resume:) name:NSWorkspaceSessionDidBecomeActiveNotification object:nil];
     [self start];
     [self updateControl];
+}
+- (void)installStatusItem {
+    if (self.statusItem) {
+        self.statusItem.visible = YES;
+        return;
+    }
+    self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
+    // A stable identity gives Twiddle one persistent slot in macOS's Menu Bar settings.
+    self.statusItem.autosaveName = @"TwiddleMenuBarItemV2";
+    self.statusItem.behavior = NSStatusItemBehaviorRemovalAllowed;
+    self.statusItem.visible = YES;
+    self.statusItem.button.image = knobStatusImage(lround(controlValue(&_control, NSProcessInfo.processInfo.systemUptime) * 135));
+    self.statusItem.button.accessibilityLabel = @"Twiddle";
+    self.statusItem.button.toolTip = @"Twiddle";
+    self.statusItem.button.target = self;
+    self.statusItem.button.action = @selector(statusClicked:);
+    [self.statusItem.button sendActionOn:NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp];
 }
 - (void)buildPopover {
     NSRect bounds = NSMakeRect(0, 0, 240, 216);
@@ -149,7 +365,12 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     CGFloat textHeight = self.readout.fittingSize.height;
     self.readout.frame = NSMakeRect(48, NSMidY(self.sourceButton.frame) - textHeight / 2, 144, textHeight);
     self.readout.textColor = NSColor.secondaryLabelColor;
+    self.readout.hidden = YES;
+    self.readout.wantsLayer = YES;
     [content addSubview:self.readout];
+    self.nowPlayingReadout = [[MarqueeLabel alloc] initWithFrame:self.readout.frame];
+    self.nowPlayingReadout.hidden = YES;
+    [content addSubview:self.nowPlayingReadout];
     self.settingsButton = [NSButton buttonWithImage:symbol(@"gearshape") target:self action:@selector(showSettings:)];
     self.settingsButton.frame = NSMakeRect(194, 12, 28, 28);
     self.settingsButton.bordered = NO;
@@ -171,11 +392,30 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     else {
         [NSApp activateIgnoringOtherApps:YES];
         [self.popover showRelativeToRect:self.statusItem.button.bounds ofView:self.statusItem.button preferredEdge:NSRectEdgeMinY];
+        self.nowPlayingReadout.active = self.footerMode == FooterModeNowPlaying;
+        [self refreshNowPlaying];
     }
 }
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)visible {
-    if (!self.popover.shown) [self statusClicked:nil];
+    if (![self statusItemHasMenuBarAnchor]) {
+        [self openMenuBarSettings:nil];
+        return YES;
+    }
+    if (!self.popover.shown) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(.15 * NSEC_PER_SEC)),
+        dispatch_get_main_queue(), ^{ [self statusClicked:nil]; });
     return YES;
+}
+- (BOOL)statusItemHasMenuBarAnchor {
+    NSWindow *window = self.statusItem.button.window;
+    if (!self.statusItem.visible || !window || NSIsEmptyRect(window.frame)) return NO;
+    NSPoint center = NSMakePoint(NSMidX(window.frame), NSMidY(window.frame));
+    for (NSScreen *screen in NSScreen.screens) {
+        if (!NSPointInRect(center, screen.frame)) continue;
+        // A hosted status-item window lives in the strip above the screen's
+        // visible frame. A removed item is parked elsewhere by AppKit.
+        return NSMinY(window.frame) >= NSMaxY(screen.visibleFrame) - 2;
+    }
+    return NO;
 }
 - (void)showMenu {
     [self.popover performClose:nil];
@@ -189,6 +429,8 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     fn.state = self.shortcutMonitor.enabled ? NSControlStateValueOn : NSControlStateValueOff;
     NSMenuItem *permissions = [menu addItemWithTitle:@"Input Monitoring…" action:@selector(openPermissions:) keyEquivalent:@""];
     permissions.target = self;
+    NSMenuItem *topRowPermissions = [menu addItemWithTitle:@"Top-row Shortcut Access…" action:@selector(openAccessibilityPermissions:) keyEquivalent:@""];
+    topRowPermissions.target = self;
     [menu addItem:NSMenuItem.separatorItem];
     [menu addItemWithTitle:@"Quit Twiddle" action:@selector(terminate:) keyEquivalent:@"q"];
     self.statusItem.menu = menu;
@@ -207,6 +449,10 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     }
 }
 - (void)popoverDidClose:(NSNotification *)notification {
+    [self.globalHotkeyPopoverTimer invalidate];
+    self.globalHotkeyPopoverTimer = nil;
+    self.popover.behavior = NSPopoverBehaviorTransient;
+    self.nowPlayingReadout.active = NO;
     if (!_showSettingsAfterPopoverCloses) return;
     _showSettingsAfterPopoverCloses = NO;
     // Let the popover finish restoring focus before activating the settings window.
@@ -214,6 +460,18 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 }
 - (void)openPermissions:(id)sender {
     [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"]];
+}
+- (void)openAccessibilityPermissions:(id)sender {
+    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
+}
+- (void)openMenuBarSettings:(id)sender {
+    NSURL *url = [NSURL URLWithString:@"x-apple.systempreferences:com.apple.ControlCenter-Settings.extension"];
+    NSWorkspaceOpenConfiguration *configuration = [NSWorkspaceOpenConfiguration configuration];
+    configuration.activates = YES;
+    [NSWorkspace.sharedWorkspace openURL:url configuration:configuration
+        completionHandler:^(NSRunningApplication *application, NSError *error) {
+            if (error) NSLog(@"Could not open Menu Bar settings: %@", error.localizedDescription);
+        }];
 }
 - (void)toggleShortcut:(id)sender {
     if (self.shortcutMonitor.enabled) {
@@ -226,7 +484,8 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [self updateControl];
 }
 - (void)updateControl {
-    double value = controlValue(&_control, NSProcessInfo.processInfo.systemUptime);
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    double value = controlValue(&_control, now);
     self.engine.target = value;
     double displayed = value;
     self.knob.doubleValue = displayed;
@@ -239,26 +498,126 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     }
     self.knob.enabled = self.engine.running && !_control.held;
     self.knob.accessibilityLabel = @"Current filter";
-    self.readout.hidden = fabs(displayed) <= .00001;
     NSString *name = [FilterKnob labelForValue:displayed];
     if (![self.readout.stringValue isEqualToString:name]) self.readout.stringValue = name;
+    FooterMode mode = FooterModeNone;
+    if (now < _filterReadoutUntil) {
+        if (!name.length) self.readout.stringValue = @"Bypass";
+        mode = FooterModeFilter;
+    } else if (self.nowPlayingText.length) {
+        mode = FooterModeNowPlaying;
+    } else if (name.length) {
+        mode = FooterModeFilter;
+    }
+    [self showFooterMode:mode];
 }
 - (void)resetKnob:(id)sender {
+    _filterReadoutUntil = NSProcessInfo.processInfo.systemUptime + 1.0;
     controlReset(&_control, NSProcessInfo.processInfo.systemUptime);
     [self updateControl];
 }
 - (void)knobChanged:(id)sender {
+    _filterReadoutUntil = NSProcessInfo.processInfo.systemUptime + 1.0;
     controlSetBaseline(&_control, self.knob.doubleValue, NSProcessInfo.processInfo.systemUptime);
     [self updateControl];
+}
+- (void)performGlobalFilterHotkey:(GlobalFilterHotkeyAction)action {
+    if (_suspended || !self.engine.running) return;
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    _filterReadoutUntil = now + GlobalHotkeyPopoverDuration;
+    if (action == GlobalFilterHotkeyToggle) controlTogglePreset(&_control, now);
+    else controlStepBaseline(&_control, action == GlobalFilterHotkeyDecrease ? -1 : 1, now);
+    [self updateControl];
+    [self showPopoverForGlobalHotkey];
+}
+- (void)showPopoverForGlobalHotkey {
+    if (![self statusItemHasMenuBarAnchor]) return;
+    self.popover.behavior = NSPopoverBehaviorApplicationDefined;
+    if (!self.popover.shown) {
+        [self.popover showRelativeToRect:self.statusItem.button.bounds ofView:self.statusItem.button
+                           preferredEdge:NSRectEdgeMinY];
+    }
+    self.nowPlayingReadout.active = NO;
+    [self.globalHotkeyPopoverTimer invalidate];
+    __weak AppDelegate *weakSelf = self;
+    self.globalHotkeyPopoverTimer = [NSTimer timerWithTimeInterval:GlobalHotkeyPopoverDuration
+        repeats:NO block:^(NSTimer *timer) {
+            AppDelegate *self = weakSelf;
+            self.globalHotkeyPopoverTimer = nil;
+            if (self.popover.shown) [self.popover performClose:nil];
+        }];
+    [NSRunLoop.mainRunLoop addTimer:self.globalHotkeyPopoverTimer forMode:NSRunLoopCommonModes];
+}
+- (void)showFooterMode:(FooterMode)mode {
+    if (_footerMode == mode) {
+        self.nowPlayingReadout.active = self.popover.shown && mode == FooterModeNowPlaying;
+        return;
+    }
+    FooterMode previous = _footerMode;
+    _footerMode = mode;
+    NSUInteger transition = ++_footerTransition;
+    NSView *outgoing = previous == FooterModeFilter ? self.readout :
+        previous == FooterModeNowPlaying ? self.nowPlayingReadout : nil;
+    NSView *incoming = mode == FooterModeFilter ? self.readout :
+        mode == FooterModeNowPlaying ? self.nowPlayingReadout : nil;
+    self.nowPlayingReadout.active = self.popover.shown && mode == FooterModeNowPlaying;
+    if (!self.popover.shown) {
+        for (NSView *field in @[self.readout, self.nowPlayingReadout]) {
+            clearBlur(field);
+            field.alphaValue = field == incoming ? 1 : 0;
+            field.hidden = field != incoming;
+        }
+        return;
+    }
+    outgoing.hidden = NO;
+    incoming.hidden = NO;
+    if (outgoing) animateBlur(outgoing, 0, 6, .18);
+    if (incoming) {
+        incoming.alphaValue = 0;
+        animateBlur(incoming, 6, 0, .18);
+        animateScaleIn(incoming, .18);
+    }
+    [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+        context.duration = .18;
+        context.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+        outgoing.animator.alphaValue = 0;
+        incoming.animator.alphaValue = 1;
+    } completionHandler:^{
+        if (transition != self->_footerTransition) return;
+        for (NSView *field in @[self.readout, self.nowPlayingReadout]) {
+            BOOL visible = field == incoming;
+            clearBlur(field);
+            field.alphaValue = visible ? 1 : 0;
+            field.hidden = !visible;
+        }
+    }];
+}
+- (void)refreshNowPlaying {
+    if (![self.selectedBundle isEqualToString:@"com.spotify.client"]) {
+        self.nowPlayingText = nil;
+        self.nowPlayingReadout.stringValue = @"";
+        [self updateControl];
+        return;
+    }
+    __weak AppDelegate *weakSelf = self;
+    [self.spotifyNowPlaying refreshWithCompletion:^(NSString *track) {
+        AppDelegate *self = weakSelf;
+        if (!self || ![self.selectedBundle isEqualToString:@"com.spotify.client"]) return;
+        self.nowPlayingText = track;
+        self.nowPlayingReadout.stringValue = track ?: @"";
+        self.nowPlayingReadout.toolTip = track;
+        self.nowPlayingReadout.accessibilityLabel = track.length ? [@"Now playing: " stringByAppendingString:track] : nil;
+        [self updateControl];
+    }];
 }
 - (void)shortcutHeld:(BOOL)held {
     if (held && !self.engine.running) return;
     controlSetTrigger(&_control, PresetTriggerShortcut, held, NSProcessInfo.processInfo.systemUptime);
     [self updateControl];
 }
-- (void)updateWispr {
-    BOOL active = !_suspended && self.engine.running && [NSUserDefaults.standardUserDefaults boolForKey:@"followWisprFlow"] && wisprMicrophoneActive();
-    controlSetTrigger(&_control, PresetTriggerWispr, active, NSProcessInfo.processInfo.systemUptime);
+- (void)updateMicrophone {
+    BOOL active = !_suspended && self.engine.running && [NSUserDefaults.standardUserDefaults boolForKey:@"microphoneEnabled"] && microphoneActive([NSUserDefaults.standardUserDefaults stringForKey:@"microphoneScope"]);
+    controlSetTrigger(&_control, PresetTriggerMicrophone, active, NSProcessInfo.processInfo.systemUptime);
     [self updateControl];
 }
 - (void)updateSourceButton {
@@ -288,18 +647,22 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 }
 - (void)refresh:(NSTimer *)timer {
     [self updateControl];
-    if (++_refreshTick % 15 == 0) {
-        [self updateWispr];
+    _refreshTick++;
+    if (_refreshTick % 15 == 0) {
+        [self updateMicrophone];
         if (self.engine.running && ![self.engine checkRoute]) {
             controlReset(&_control, NSProcessInfo.processInfo.systemUptime);
             if (!_suspended) [self start];
         }
     }
+    if (_refreshTick % 60 == 0 && self.popover.shown) [self refreshNowPlaying];
+    if (_refreshTick % 60 == 0 && !self.globalFilterHotkeys.enabled && CGPreflightPostEventAccess())
+        [self.globalFilterHotkeys start];
 }
 - (void)suspend:(NSNotification *)notification {
     _suspended = YES;
     [self.shortcutMonitor disable];
-    [self updateWispr];
+    [self updateMicrophone];
     controlReset(&_control, NSProcessInfo.processInfo.systemUptime);
     [self.engine stop];
 }
@@ -311,7 +674,9 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 }
 - (void)applicationWillTerminate:(NSNotification *)notification {
     [self.timer invalidate];
+    [self.globalHotkeyPopoverTimer invalidate];
     [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self];
+    [self.globalFilterHotkeys stop];
     [self.shortcutMonitor disable];
     [self.engine stop];
 }

@@ -87,6 +87,7 @@ if [[ ! -f "$signing_dir/trust-configured" ]]; then
 fi
 
 codesign --force --sign "$fingerprint" --keychain "$signing_keychain" --timestamp=none \
+    --entitlements "$(cd "$(dirname "$0")/.." && pwd)/Twiddle.entitlements" \
     --identifier com.parssa.lowpasser.poc \
     --requirements "=designated => identifier \"com.parssa.lowpasser.poc\" and certificate leaf = H\"$fingerprint\"" \
     "$app"

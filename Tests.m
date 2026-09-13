@@ -1,8 +1,13 @@
 #include "Filter.h"
 #include "FilterControl.h"
 #include <stdio.h>
+#import <Cocoa/Cocoa.h>
 #import "HoldShortcutMonitor.h"
+#import "GlobalFilterHotkeys.h"
+#import "FilterKnob.h"
 #import <CoreGraphics/CoreGraphics.h>
+#import <IOKit/hidsystem/ev_keymap.h>
+#import <IOKit/hidsystem/IOLLEvent.h>
 
 // Exercise the same shortcut-event decoder without listening to or injecting
 // events into the user's desktop.
@@ -10,9 +15,14 @@
 - (void)receiveType:(CGEventType)type event:(CGEventRef)event;
 @end
 
+@interface GlobalFilterHotkeys (TestEvents)
+- (BOOL)receiveMediaEvent:(NSEvent *)event;
+@end
+
 #define CHECK(condition) do { if (!(condition)) { fprintf(stderr, "Failed: %s (line %d)\n", #condition, __LINE__); return 1; } } while (0)
 
 static int controlTests(void) {
+    CHECK([[FilterKnob labelForValue:[FilterKnob defaultPresetValue]] isEqualToString:@"Low-pass · 1100 Hz"]);
     FilterControl c = {.preset = -.8};
     controlSetBaseline(&c, .3, 0);
     controlSetHeld(&c, true, 1);
@@ -45,25 +55,48 @@ static int controlTests(void) {
     controlSetHeld(&c, false, 8);
     CHECK(fabs(controlValue(&c, 8.5) - .6) < 1e-6);
 
+    FilterControl stepped = {0};
+    controlSetBaseline(&stepped, -.72, 0);
+    controlStepBaseline(&stepped, -1, 1);
+    CHECK(fabs(stepped.baseline + .8) < 1e-6);
+    CHECK(fabs(controlValue(&stepped, 1) + .72) < 1e-6);
+    CHECK(controlValue(&stepped, 1.08) < -.72 && controlValue(&stepped, 1.08) > -.8);
+    CHECK(fabs(controlValue(&stepped, 1.16) + .8) < 1e-6);
+    controlStepBaseline(&stepped, 1, 2);
+    CHECK(fabs(stepped.baseline + .7) < 1e-6);
+    CHECK(fabs(controlValue(&stepped, 2.16) + .7) < 1e-6);
+
+    FilterControl toggled = {.preset = -.65};
+    controlTogglePreset(&toggled, 0);
+    CHECK(toggled.baseline == -.65 && fabs(controlValue(&toggled, .18) + .65) < 1e-6);
+    controlTogglePreset(&toggled, .2);
+    CHECK(toggled.baseline == 0 && fabs(controlValue(&toggled, .38)) < 1e-6);
+    controlTogglePreset(&toggled, .4);
+    controlTogglePreset(&toggled, .45); // A quick repeat reverses the in-flight transition.
+    CHECK(toggled.baseline == 0 && fabs(controlValue(&toggled, .63)) < 1e-6);
+
     FilterControl overlap = {.preset = -.8};
     controlSetBaseline(&overlap, .2, 0);
     controlSetTrigger(&overlap, PresetTriggerShortcut, true, 1);
-    controlSetTrigger(&overlap, PresetTriggerWispr, true, 1.1);
+    controlSetTrigger(&overlap, PresetTriggerMicrophone, true, 1.1);
     controlSetTrigger(&overlap, PresetTriggerShortcut, false, 1.2);
     CHECK(overlap.held && fabs(controlValue(&overlap, 1.3) + .8) < 1e-6);
-    controlSetTrigger(&overlap, PresetTriggerWispr, false, 2);
+    controlSetTrigger(&overlap, PresetTriggerMicrophone, false, 2);
     CHECK(!overlap.held && fabs(controlValue(&overlap, 2.5) - .2) < 1e-6);
-    controlSetTrigger(&overlap, PresetTriggerWispr, true, 3);
+    controlSetTrigger(&overlap, PresetTriggerMicrophone, true, 3);
     controlReset(&overlap, 3.3);
     controlSetTrigger(&overlap, PresetTriggerShortcut, true, 3.4);
     CHECK(!overlap.held); // Reset stays neutral until both sources have released.
-    controlSetTrigger(&overlap, PresetTriggerWispr, false, 3.5);
+    controlSetTrigger(&overlap, PresetTriggerMicrophone, false, 3.5);
     controlSetTrigger(&overlap, PresetTriggerShortcut, false, 3.6);
-    controlSetTrigger(&overlap, PresetTriggerWispr, true, 4);
+    controlSetTrigger(&overlap, PresetTriggerMicrophone, true, 4);
     CHECK(overlap.held && fabs(controlValue(&overlap, 4.3) + .8) < 1e-6);
 
     @autoreleasepool {
         HoldShortcutMonitor *monitor = [HoldShortcutMonitor new];
+        CHECK(!monitor.configured);
+        CHECK(![monitor enableRequestingPermission:NO]);
+        [monitor setKeyCode:-1 modifiers:kCGEventFlagMaskSecondaryFn];
         __block unsigned changes = 0;
         __block BOOL held = NO;
         monitor.changed = ^(BOOL down) { changes++; held = down; };
@@ -149,7 +182,32 @@ static int controlTests(void) {
         CHECK(![monitor enableRequestingPermission:NO]);
         CFRelease(event);
     }
-    puts("Hold/release, repeated modifiers, reset interruption, and listener cleanup checks passed.");
+    @autoreleasepool {
+        GlobalFilterHotkeys *hotkeys = [GlobalFilterHotkeys new];
+        __block NSMutableArray<NSNumber *> *actions = [NSMutableArray new];
+        hotkeys.performed = ^(GlobalFilterHotkeyAction action) { [actions addObject:@(action)]; };
+        NSEvent *(^media)(unsigned, unsigned, NSEventModifierFlags, BOOL) =
+            ^NSEvent *(unsigned key, unsigned state, NSEventModifierFlags flags, BOOL repeat) {
+                NSInteger data = (key << 16) | (state << 8) | (repeat ? 1 : 0);
+                return [NSEvent otherEventWithType:NSEventTypeSystemDefined location:NSZeroPoint
+                    modifierFlags:flags timestamp:0 windowNumber:0 context:nil
+                    subtype:NX_SUBTYPE_AUX_CONTROL_BUTTONS data1:data data2:0];
+            };
+        CHECK(![hotkeys receiveMediaEvent:media(NX_KEYTYPE_SOUND_DOWN, NX_KEYDOWN, 0, NO)]);
+        CHECK(![hotkeys receiveMediaEvent:media(NX_KEYTYPE_SOUND_DOWN, NX_KEYDOWN,
+            NSEventModifierFlagOption | NSEventModifierFlagShift, NO)]);
+        CHECK([hotkeys receiveMediaEvent:media(NX_KEYTYPE_MUTE, NX_KEYDOWN, NSEventModifierFlagOption, NO)]);
+        CHECK(actions.lastObject.unsignedIntegerValue == GlobalFilterHotkeyToggle);
+        CHECK([hotkeys receiveMediaEvent:media(NX_KEYTYPE_MUTE, NX_KEYDOWN, NSEventModifierFlagOption, YES)]);
+        CHECK(actions.count == 1);
+        CHECK([hotkeys receiveMediaEvent:media(NX_KEYTYPE_SOUND_DOWN, NX_KEYDOWN, NSEventModifierFlagOption, NO)]);
+        CHECK(actions.lastObject.unsignedIntegerValue == GlobalFilterHotkeyDecrease);
+        CHECK([hotkeys receiveMediaEvent:media(NX_KEYTYPE_SOUND_UP, NX_KEYDOWN, NSEventModifierFlagOption, NO)]);
+        CHECK(actions.lastObject.unsignedIntegerValue == GlobalFilterHotkeyIncrease);
+        CHECK([hotkeys receiveMediaEvent:media(NX_KEYTYPE_SOUND_UP, NX_KEYUP, NSEventModifierFlagOption, NO)]);
+        CHECK(actions.count == 3);
+    }
+    puts("Hold, fixed-hotkey, reset, and listener cleanup checks passed.");
     return 0;
 }
 

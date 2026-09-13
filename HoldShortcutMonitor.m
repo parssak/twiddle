@@ -19,7 +19,7 @@ static CGEventRef shortcutEvent(CGEventTapProxy proxy, CGEventType type, CGEvent
 
 @implementation HoldShortcutMonitor
 - (instancetype)init {
-    if ((self = [super init])) { _keyCode = -1; _modifiers = kCGEventFlagMaskSecondaryFn; }
+    if ((self = [super init])) _keyCode = -1;
     return self;
 }
 - (void)releaseHeld {

@@ -27,13 +27,21 @@ static inline void controlSetBaseline(FilterControl *c, double value, double now
     if (!c->held) controlTransition(c, c->baseline, 0, now);
 }
 
+static inline void controlStepBaseline(FilterControl *c, int direction, double now) {
+    const double step = 1.0 / 10.0;
+    double position = c->baseline / step;
+    double target = direction < 0 ? floor(position - 1e-9) * step : ceil(position + 1e-9) * step;
+    c->baseline = fmin(1, fmax(-1, target));
+    if (!c->held) controlTransition(c, c->baseline, .16, now);
+}
+
 static inline void controlSetHeld(FilterControl *c, bool held, double now) {
     if (held == c->held) return;
     c->held = held;
     controlTransition(c, held ? c->preset : c->baseline, held ? .18 : .4, now);
 }
 
-enum { PresetTriggerShortcut = 1, PresetTriggerWispr = 2 };
+enum { PresetTriggerShortcut = 1, PresetTriggerMicrophone = 2 };
 
 static inline void controlSetTrigger(FilterControl *c, unsigned source, bool active, double now) {
     unsigned triggers = active ? c->triggers | source : c->triggers & ~source;
@@ -53,4 +61,12 @@ static inline void controlReset(FilterControl *c, double now) {
     c->suppressTriggers = c->triggers != 0;
     c->baseline = 0;
     controlTransition(c, 0, .18, now);
+}
+
+static inline void controlTogglePreset(FilterControl *c, double now) {
+    bool active = c->held || fabs(c->baseline) > 1e-6;
+    c->held = false;
+    c->suppressTriggers = c->triggers != 0;
+    c->baseline = active ? 0 : c->preset;
+    controlTransition(c, c->baseline, .18, now);
 }

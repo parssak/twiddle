@@ -62,10 +62,13 @@ The script enables hardened runtime, adds secure timestamps, submits the DMG to 
 - `AudioEngine`: capture/playback lifecycle, format validation, and real-time callback.
 - `Filter.h` / `FilterControl.h`: DSP and smooth live/preset transitions.
 - `HoldShortcutMonitor`: Input Monitoring permission and held shortcuts.
+- `GlobalFilterHotkeys`: fixed ⌥F10 preset toggle and ⌥F11–F12 stepped filter controls. It registers ordinary function-key hotkeys and, with Accessibility permission, consumes the equivalent mute/volume media-key events so Fn is unnecessary.
 - `AppDelegate` / `FilterKnob`: menu bar, popover, knob, and haptics.
+- `SpotifyNowPlaying`: reads the current Spotify track over Apple events while the popover is open.
 - `SettingsController`: floating settings window, preset knob, shortcut recorder, colors, and installed-app picker.
-- `WisprActivity`: polls Core Audio process input activity for Flow and its helpers, without capturing audio.
+- `DiscoOverlay`: the permission-free Metal disco overlay shown from the Settings wordmark.
+- `MicrophoneActivity`: polls Core Audio process input activity for any app or Flow and its helpers, excluding Twiddle by PID and bundle ID. It does not capture audio.
 
-The shortcut and Flow activity share the preset through separate trigger bits. Releasing one cannot restore the baseline while the other remains active; reset suppresses active triggers until both release. Flow activity is checked four times per second using public Core Audio process properties. This detects microphone activity, not a documented Flow dictation-state event.
+The shortcut and microphone activity share the preset through separate trigger bits. Releasing one cannot restore the baseline while the other remains active; reset suppresses active triggers until both release. Microphone activity is checked four times per second using public Core Audio process properties. A process must report both active input and a nonempty input-device list; device-less background services such as CoreSpeech do not qualify. This detects active input streams, including virtual inputs, rather than speech or in-app mute state. The legacy `followWisprFlow` preference migrates once to `microphoneEnabled`; `microphoneScope` defaults to `wispr` and also supports `any`.
 
 The app supports stereo float audio and rejects unsupported layouts. It restarts processing when the output changes and resumes after sleep. Bluetooth, physical sleep/wake, protected content, multichannel devices, and latency need broader testing.

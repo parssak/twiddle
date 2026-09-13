@@ -1,14 +1,3 @@
+build/
 .git/
 .vercel/
-build/
-Assets/
-docs/
-scripts/
-*.m
-*.h
-*.sh
-*.plist
-*.entitlements
-README.md
-site/README.md
-site/assets/SOURCES.md

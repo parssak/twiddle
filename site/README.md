@@ -10,7 +10,7 @@ Preview from the repository root:
 
 Open http://localhost:8765.
 
-Vercel project: `goose-party/twiddle`, serving `twiddle.fun`. From the repository root, run `vercel link --yes --project twiddle --scope goose-party` once, then `vercel --prod --scope goose-party`. The root `vercel.json` sets `site` as the output directory with no build command; `.vercelignore` limits uploads to website files.
+Vercel project: `goose-party/twiddle`, serving `twiddle.fun`. From the repository root, run `npx vercel@59.16.0 link --yes --project twiddle --scope goose-party` once, then `npx vercel@59.16.0 --prod --scope goose-party`. The root `vercel.json` sets `site` as the output directory with no build command; `.vercelignore` excludes local build artifacts.
 
 The download in `index.html` points to the verified v0.2 DMG. Update the versioned asset URL when publishing a new release.
 

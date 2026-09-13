@@ -6,7 +6,7 @@ A little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or 
 
 **[Download Twiddle](https://github.com/parssak/twiddle/releases/latest)** · Apple Silicon · macOS 26+
 
-The DMG is v0.1. The Settings window and microphone trigger described below are currently available in source builds.
+The v0.2 DMG includes Settings, configurable hold shortcuts, and microphone-aware filtering.
 
 <img src="docs/screenshot.png" width="520" alt="Twiddle in the macOS menu bar, filtering Spotify with a brushed-metal knob">
 
@@ -28,8 +28,6 @@ Allow system audio recording when macOS asks. Twiddle also asks for access to Sp
 When Spotify is the default app, the footer shows its current song. Adjusting the knob temporarily replaces it with the filter frequency, then blurs back to the song after a second. Long names stay pinned to the beginning, then scroll after a brief hover pause.
 
 Settings is split into General and Automatic Preset pages. You can record or clear the hold shortcut (None by default), choose your low/high colors, and pick Spotify, Music, Chrome, Arc, or Dia as your default app. Apps that aren’t installed are unavailable. New installs enable Open at Login and trackpad haptics; either can be turned off in Settings. macOS may require approval for the login item.
-
-Hover over the Twiddle wordmark for the disco Easter egg. Its Metal animation is fully local and permission-free.
 
 The first Settings row opens macOS Menu Bar settings, where the system's “Allow in the Menu Bar” switch controls Twiddle's icon. If the icon is unavailable, reopening Twiddle from Applications, Spotlight, or Raycast opens that page directly.
 

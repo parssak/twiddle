@@ -57,6 +57,16 @@ TWIDDLE_NOTARY_PROFILE='twiddle-notary' bash package.sh --release
 
 The script enables hardened runtime, adds secure timestamps, submits the DMG to Apple, staples its ticket, and checks Gatekeeper. Output is `build/Twiddle-<version>-<architecture>.dmg`, with a SHA-256 checksum and notarization result alongside it. A failed release preserves its candidate DMG for inspection or finishing a delayed submission. Builds target the host architecture.
 
+## Source layout
+
+- `Sources/App/`: application lifecycle, global shortcuts, Spotify integration, and release checking.
+- `Sources/UI/`: Settings, the filter knob, app grids, shortcut recorder, wordmark, marquee, and visual effects. `SettingsLayout` owns shared card/row construction and spacing constants.
+- `Sources/Audio/`: capture/playback, DSP and preset state, process discovery, and playback-level monitoring. `AudioProcessActivity` supplies both microphone activity and candidate playback processes.
+- `Tests/`: self-tests compiled into the app and run with `--self-test` during builds.
+- `Assets/`: packaged app resources. `site/` contains the separate website.
+
+`build.sh` compiles the Objective-C files in those source directories and copies the resources into the app bundle. Adding a source file within a directory does not require updating a hand-maintained compiler command.
+
 ## Code
 
 - `AudioEngine`: capture/playback lifecycle, format validation, and real-time callback.
@@ -65,10 +75,12 @@ The script enables hardened runtime, adds secure timestamps, submits the DMG to 
 - `GlobalFilterHotkeys`: fixed ⌥F10 preset toggle and ⌥F11–F12 stepped filter controls. It registers ordinary function-key hotkeys and, with Accessibility permission, consumes the equivalent mute/volume media-key events so Fn is unnecessary.
 - `AppDelegate` / `FilterKnob`: menu bar, popover, knob, and haptics.
 - `SpotifyNowPlaying`: reads the current Spotify track over Apple events while the popover is open.
-- `SettingsController`: floating settings window, preset knob, shortcut recorder, colors, and installed-app picker.
-- `DiscoOverlay`: the permission-free Metal disco overlay shown from the Settings wordmark.
-- `MicrophoneActivity`: polls Core Audio process input activity for any app or Flow and its helpers, excluding Twiddle by PID and bundle ID. It does not capture audio.
+- `SettingsController`: settings navigation, card layout, and preference callbacks; standalone views handle app grids, shortcut recording, and the wordmark.
+- `DiscoOverlay`: the permission-free Metal disco overlay shown from the Settings wordmark. Drag the ball to stretch and tilt the cord; crossing the pull threshold releases it and cycles the beam palette. Progressive haptic detents honor Trackpad Haptics. Two-finger swipes over the ball add bounded spin momentum in either direction, then decay back to its normal rotation; system scroll momentum is ignored. `DiscoMotion` owns the normalized pull, damped return, and single-trigger latch; short clicks and Escape still dismiss the overlay. `DiscoNowPlaying` displays large Spotify song and artist text with asynchronously loaded album artwork at the bottom left of each display, blurs and fades on entry and exit, polls only while disco mode is visible, and hides paused or unavailable tracks. `AlbumPalette` samples each downloaded cover at 32×32, selects up to four saturated accents, and passes them to the rays with an 0.8-second blend. Pulling cycles album colours, warm, cool, and rainbow modes. Album mode falls back to white for monochrome or missing artwork. Only current artwork colours and the in-flight palette blend are retained.
+- `AudioProcessActivity`: polls Core Audio process input activity for any app or Flow and output activity for selected trigger apps, excluding Twiddle by PID and bundle ID. It does not capture audio.
 
-The shortcut and microphone activity share the preset through separate trigger bits. Releasing one cannot restore the baseline while the other remains active; reset suppresses active triggers until both release. Microphone activity is checked four times per second using public Core Audio process properties. A process must report both active input and a nonempty input-device list; device-less background services such as CoreSpeech do not qualify. This detects active input streams, including virtual inputs, rather than speech or in-app mute state. The legacy `followWisprFlow` preference migrates once to `microphoneEnabled`; `microphoneScope` defaults to `wispr` and also supports `any`.
+The shortcut, microphone activity, and app playback share the preset through separate trigger bits. Playback polls `kAudioProcessPropertyIsRunningOutput` for `triggerBundles` to find candidate processes, including helper bundle IDs with a case-insensitive, dot-delimited app bundle prefix. `PlaybackActivity` uses one private, unmuted stereo mixdown tap for those processes, with no playback device attached. Its callback checks 32-bit float samples against -60 dBFS and atomically updates the last-sound timestamp. The UI checks that timestamp at 60 Hz: 300 ms of silence releases the playback trigger with a 180 ms fade. The monitor stops when no trigger streams are active, or filtering is stopped or suspended. Audio samples are never retained. `targetBundles` migrates from the previous `selectedBundle` and feeds the existing multi-bundle process tap. Releasing one cannot restore the baseline while another remains active; reset suppresses active triggers until all release. Microphone activity is checked four times per second using public Core Audio process properties. A process must report both active input and a nonempty input-device list; device-less background services such as CoreSpeech do not qualify. This detects active input streams, including virtual inputs, rather than speech or in-app mute state. The legacy `followWisprFlow` preference migrates once to `microphoneEnabled`; `microphoneScope` defaults to `wispr` and also supports `any`.
 
 The app supports stereo float audio and rejects unsupported layouts. It restarts processing when the output changes and resumes after sleep. Bluetooth, physical sleep/wake, protected content, multichannel devices, and latency need broader testing.
+
+`TwiddleControl` owns command parsing and the private Unix-socket transport. `AppDelegate` applies validated commands through the existing filter and settings controls. The app executable enters CLI mode with `--cli`, or when launched through the `twiddle` symlink. See [CLI.md](CLI.md) for the command contract.

@@ -11,10 +11,17 @@
     return self;
 }
 - (void)refreshWithCompletion:(void (^)(NSString *track))completion {
+    [self refreshDetailsWithCompletion:^(NSString *title, NSString *artist, BOOL playing, NSString *artworkURL) {
+        NSString *track = title.length && artist.length ? [NSString stringWithFormat:@"%@ · %@", title, artist] :
+            title.length ? title : artist;
+        completion(track);
+    }];
+}
+- (void)refreshDetailsWithCompletion:(void (^)(NSString *title, NSString *artist, BOOL playing, NSString *artworkURL))completion {
     NSAssert(NSThread.isMainThread, @"Spotify metadata refreshes must start on the main thread");
     if (_refreshing) return;
     if (![NSRunningApplication runningApplicationsWithBundleIdentifier:@"com.spotify.client"].count) {
-        completion(nil);
+        completion(nil, nil, NO, nil);
         return;
     }
     _refreshing = YES;
@@ -23,19 +30,17 @@
             NSString *source = @"tell application id \"com.spotify.client\"\n"
                 "if player state is stopped then return {}\n"
                 "set playingTrack to current track\n"
-                "return {name of playingTrack, artist of playingTrack}\n"
+                "return {name of playingTrack, artist of playingTrack, player state is playing, artwork url of playingTrack}\n"
                 "end tell";
             NSDictionary *error = nil;
             NSAppleEventDescriptor *result = [[[NSAppleScript alloc] initWithSource:source]
                 executeAndReturnError:&error];
             NSString *title = [result descriptorAtIndex:1].stringValue;
             NSString *artist = [result descriptorAtIndex:2].stringValue;
-            NSString *track = nil;
-            if (title.length && artist.length) track = [NSString stringWithFormat:@"%@ · %@", title, artist];
-            else track = title.length ? title : artist;
+            BOOL playing = [result descriptorAtIndex:3].booleanValue;
             dispatch_async(dispatch_get_main_queue(), ^{
                 self->_refreshing = NO;
-                completion(track);
+                completion(title, artist, playing, [result descriptorAtIndex:4].stringValue);
             });
         }
     });

@@ -1,10 +1,12 @@
 #include "Filter.h"
 #include "FilterControl.h"
+#include "AudioActivity.h"
 #include <stdio.h>
 #import <Cocoa/Cocoa.h>
 #import "HoldShortcutMonitor.h"
 #import "GlobalFilterHotkeys.h"
 #import "FilterKnob.h"
+#import "AudioProcessActivity.h"
 #import <CoreGraphics/CoreGraphics.h>
 #import <IOKit/hidsystem/ev_keymap.h>
 #import <IOKit/hidsystem/IOLLEvent.h>
@@ -22,6 +24,30 @@
 #define CHECK(condition) do { if (!(condition)) { fprintf(stderr, "Failed: %s (line %d)\n", #condition, __LINE__); return 1; } } while (0)
 
 static int controlTests(void) {
+    FilterControl disco = {.baseline = .2, .preset = -.7};
+    controlSetTrigger(&disco, PresetTriggerDisco, true, 1);
+    CHECK(disco.held && fabs(controlValue(&disco, 2)+.7) < .00001);
+    controlSetPreset(&disco, -.4, 2);
+    CHECK(fabs(controlValue(&disco, 3)+.4) < .00001);
+    controlSetTrigger(&disco, PresetTriggerMicrophone, true, 3);
+    controlSetTrigger(&disco, PresetTriggerDisco, false, 4);
+    CHECK(disco.held);
+    controlSetTrigger(&disco, PresetTriggerMicrophone, false, 5);
+    CHECK(!disco.held && fabs(controlValue(&disco, 6)-.2) < .00001);
+
+    float quiet[] = {0, 0.0001f, -0.0001f, NAN, INFINITY};
+    float sound[] = {0, -.002f, 0};
+    CHECK(!audioSamplesAudible(quiet, 5));
+    CHECK(audioSamplesAudible(sound, 3));
+    CHECK(audioRecentlyAudible(.299));
+    CHECK(!audioRecentlyAudible(.301));
+    CHECK(!audioRecentlyAudible(-1));
+    CHECK(audioProcessMatchesBundle(@"company.thebrowser.browser.helper", @"company.thebrowser.Browser"));
+    CHECK(audioProcessMatchesBundle(@"company.thebrowser.Browser", @"company.thebrowser.Browser"));
+    CHECK(!audioProcessMatchesBundle(@"company.thebrowser.browserother.helper", @"company.thebrowser.Browser"));
+    CHECK(!audioProcessMatchesBundle(@"com.google.Chrome.helper", @"company.thebrowser.Browser"));
+    CHECK(!audioProcessMatchesBundle(nil, @"company.thebrowser.Browser"));
+    CHECK(!audioProcessMatchesBundle(@"company.thebrowser.browser.helper", @""));
     CHECK([[FilterKnob labelForValue:[FilterKnob defaultPresetValue]] isEqualToString:@"Low-pass · 1100 Hz"]);
     FilterControl c = {.preset = -.8};
     controlSetBaseline(&c, .3, 0);
@@ -91,6 +117,26 @@ static int controlTests(void) {
     controlSetTrigger(&overlap, PresetTriggerShortcut, false, 3.6);
     controlSetTrigger(&overlap, PresetTriggerMicrophone, true, 4);
     CHECK(overlap.held && fabs(controlValue(&overlap, 4.3) + .8) < 1e-6);
+
+    FilterControl playback = {.preset = -.6};
+    controlSetBaseline(&playback, .25, 0);
+    controlSetTrigger(&playback, PresetTriggerPlayback, true, 1);
+    controlSetTrigger(&playback, PresetTriggerMicrophone, true, 1.1);
+    controlSetTrigger(&playback, PresetTriggerPlayback, false, 1.2);
+    CHECK(playback.held); // A browser stopping must not release an active mic preset.
+    controlSetTrigger(&playback, PresetTriggerMicrophone, false, 2);
+    CHECK(!playback.held && fabs(controlValue(&playback, 2.5) - .25) < 1e-6);
+    controlSetTrigger(&playback, PresetTriggerPlayback, true, 3);
+    controlReset(&playback, 3.3);
+    controlSetTrigger(&playback, PresetTriggerShortcut, true, 3.4);
+    controlSetTrigger(&playback, PresetTriggerShortcut, false, 3.5);
+    CHECK(!playback.held && playback.suppressTriggers);
+    controlSetTrigger(&playback, PresetTriggerPlayback, false, 4);
+    controlSetTrigger(&playback, PresetTriggerPlayback, true, 5);
+    CHECK(playback.held && fabs(controlValue(&playback, 5.3) + .6) < 1e-6);
+    controlSetTrigger(&playback, PresetTriggerPlayback, false, 6);
+    CHECK(!playback.held && playback.duration == .18);
+    CHECK(fabs(controlValue(&playback, 6.2)) < 1e-6);
 
     @autoreleasepool {
         HoldShortcutMonitor *monitor = [HoldShortcutMonitor new];
@@ -211,7 +257,12 @@ static int controlTests(void) {
     return 0;
 }
 
+int discoMotionTests(void);
+int cliTests(void);
+
 int selfTest(void) {
+    if (cliTests()) return 1;
+    if (discoMotionTests()) return 1;
     if (controlTests()) return 1;
     const float positions[] = {0, -1, 1};
     const double frequencies[] = {440, 10000, 100};

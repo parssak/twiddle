@@ -45,7 +45,7 @@ static void photographicLayers(CGImageRef *illumination, CGImageRef *detail) {
 @implementation KnobRenderer
 - (void)drawValue:(double)value lidAngle:(double)lidAngle {
     NSRect body = NSMakeRect(-72, -72, 144, 144);
-    // Move the photograph's existing reflection slightly with the lid. Adding
+    // Sweep the photograph's existing reflection with the lid. Adding
     // another specular lobe over its baked sheen would make two light sources.
     CGFloat tilt = fmax(-1, fmin(1, (lidAngle - 90) / 50));
     [NSGraphicsContext saveGraphicsState];
@@ -60,7 +60,7 @@ static void photographicLayers(CGImageRef *illumination, CGImageRef *detail) {
     NSGradient *rim = [[NSGradient alloc] initWithColors:@[
         [NSColor colorWithWhite:.95 alpha:1], [NSColor colorWithWhite:.58 alpha:1],
         [NSColor colorWithWhite:.25 alpha:1]]];
-    [rim drawInBezierPath:[NSBezierPath bezierPathWithOvalInRect:NSInsetRect(body, 1, 1)] angle:-65 + tilt * 15];
+    [rim drawInBezierPath:[NSBezierPath bezierPathWithOvalInRect:NSInsetRect(body, 1, 1)] angle:-65 + tilt * 35];
     NSRect face = NSInsetRect(body, 5, 5);
     static CGImageRef illumination, detail;
     static dispatch_once_t once;
@@ -71,7 +71,7 @@ static void photographicLayers(CGImageRef *illumination, CGImageRef *detail) {
     [[NSBezierPath bezierPathWithOvalInRect:face] addClip];
     [NSGraphicsContext saveGraphicsState];
     NSAffineTransform *rotation = [NSAffineTransform transform];
-    [rotation rotateByDegrees:tilt * 10];
+    [rotation rotateByDegrees:tilt * 40];
     [rotation concat];
     CGContextRef graphics = NSGraphicsContext.currentContext.CGContext;
     CGContextSetInterpolationQuality(graphics, kCGInterpolationHigh);
@@ -84,9 +84,9 @@ static void photographicLayers(CGImageRef *illumination, CGImageRef *detail) {
     CGContextSetBlendMode(graphics, kCGBlendModeOverlay);
     if (detail) CGContextDrawImage(graphics, NSRectToCGRect(face), detail);
     [NSGraphicsContext restoreGraphicsState];
-    // A broad, very light attenuation preserves the photo's machining contrast.
+    // Directional shading reinforces the lid tilt while retaining machining detail.
     NSGradient *shade = [[NSGradient alloc] initWithStartingColor:NSColor.clearColor
-        endingColor:[NSColor.blackColor colorWithAlphaComponent:fabs(tilt) * .085]];
+        endingColor:[NSColor.blackColor colorWithAlphaComponent:fabs(tilt) * .22]];
     [shade drawInRect:face angle:tilt >= 0 ? 90 : -90];
     [NSGraphicsContext restoreGraphicsState];
     NSBezierPath *edge = [NSBezierPath bezierPathWithOvalInRect:face];
@@ -95,7 +95,7 @@ static void photographicLayers(CGImageRef *illumination, CGImageRef *detail) {
     [edge stroke];
     NSBezierPath *highlight = [NSBezierPath bezierPath];
     [highlight appendBezierPathWithArcWithCenter:NSZeroPoint radius:70
-        startAngle:25 + tilt * 15 endAngle:155 + tilt * 15];
+        startAngle:25 + tilt * 35 endAngle:155 + tilt * 35];
     highlight.lineWidth = .7;
     [[NSColor.whiteColor colorWithAlphaComponent:.7] setStroke];
     [highlight stroke];

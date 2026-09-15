@@ -1,8 +1,16 @@
-#import "MicrophoneActivity.h"
+#import "AudioProcessActivity.h"
 #import "CoreAudioUtilities.h"
 #include <unistd.h>
 
-BOOL microphoneActive(NSString *scope) {
+BOOL audioProcessMatchesBundle(NSString *processBundle, NSString *appBundle) {
+    if (!processBundle.length || !appBundle.length) return NO;
+    NSString *process = processBundle.lowercaseString;
+    NSString *app = appBundle.lowercaseString;
+    return [process isEqualToString:app] || [process hasPrefix:[app stringByAppendingString:@"."]];
+}
+
+static BOOL processActive(NSString *scope, NSSet<NSString *> *bundles, NSMutableArray<NSNumber *> *outputs) {
+    if (bundles && !bundles.count) return NO;
     AudioObjectPropertyAddress property = address(kAudioHardwarePropertyProcessObjectList, kAudioObjectPropertyScopeGlobal);
     UInt32 size = 0;
     if (AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &property, 0, NULL, &size) || !size) return NO;
@@ -16,10 +24,17 @@ BOOL microphoneActive(NSString *scope) {
         if (pid == getpid()) continue;
         NSString *bundle = stringProperty(processes[i], kAudioProcessPropertyBundleID);
         if ([bundle isEqualToString:NSBundle.mainBundle.bundleIdentifier]) continue;
-        if (![scope isEqualToString:@"any"] &&
-            ![bundle isEqualToString:@"com.electron.wispr-flow"] && ![bundle hasPrefix:@"com.electron.wispr-flow."]) continue;
+        if (bundles) {
+            BOOL matches = NO;
+            for (NSString *candidate in bundles) {
+                if (audioProcessMatchesBundle(bundle, candidate)) { matches = YES; break; }
+            }
+            if (!matches) continue;
+        } else if (![scope isEqualToString:@"any"] &&
+            !audioProcessMatchesBundle(bundle, @"com.electron.wispr-flow")) continue;
         UInt32 active = 0;
-        if (readProperty(processes[i], kAudioProcessPropertyIsRunningInput, kAudioObjectPropertyScopeGlobal, sizeof(active), &active) || !active) continue;
+        if (readProperty(processes[i], bundles ? kAudioProcessPropertyIsRunningOutput : kAudioProcessPropertyIsRunningInput, kAudioObjectPropertyScopeGlobal, sizeof(active), &active) || !active) continue;
+        if (bundles) { [outputs addObject:@(processes[i])]; continue; }
         // Background services can report active input without using any device.
         // Require a device assigned specifically to this process's input scope.
         AudioObjectPropertyAddress inputs = address(kAudioProcessPropertyDevices, kAudioObjectPropertyScopeInput);
@@ -28,4 +43,11 @@ BOOL microphoneActive(NSString *scope) {
             inputSize >= sizeof(AudioObjectID)) return YES;
     }
     return NO;
+}
+
+BOOL microphoneActive(NSString *scope) { return processActive(scope, nil, nil); }
+NSArray<NSNumber *> *activeOutputProcesses(NSSet<NSString *> *bundles) {
+    NSMutableArray *outputs = [NSMutableArray new];
+    processActive(nil, bundles ?: [NSSet set], outputs);
+    return [outputs sortedArrayUsingSelector:@selector(compare:)];
 }

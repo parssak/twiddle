@@ -1,11 +1,14 @@
 #import "AppDelegate.h"
 #import "AudioEngine.h"
+#import "TwiddleControl.h"
 
 int selfTest(void);
 
 int main(int argc, const char *argv[]) {
     if (argc > 1 && strcmp(argv[1], "--self-test") == 0) return selfTest();
     @autoreleasepool {
+        if (argc > 1 && !strcmp(argv[1], "--cli")) return twiddleCLI(argc-2, argv+2);
+        if ([[@(argv[0]) lastPathComponent] isEqualToString:@"twiddle"]) return twiddleCLI(argc-1, argv+1);
         if (argc > 1 && strcmp(argv[1], "--probe") == 0) {
             AudioEngine *probe = [AudioEngine new];
             NSMutableSet *selected = nil;

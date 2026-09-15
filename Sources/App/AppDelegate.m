@@ -4,10 +4,14 @@
 #import "GlobalFilterHotkeys.h"
 #import "FilterKnob.h"
 #import "SettingsController.h"
-#import "MicrophoneActivity.h"
+#import "AudioProcessActivity.h"
+#import "PlaybackActivity.h"
 #import "SpotifyNowPlaying.h"
+#import "TwiddleControl.h"
 #import <ServiceManagement/ServiceManagement.h>
-#import <CoreImage/CoreImage.h>
+#import "MarqueeLabel.h"
+#import "ViewAnimations.h"
+#import "ApplicationInfo.h"
 #import <QuartzCore/QuartzCore.h>
 #include "FilterControl.h"
 
@@ -18,171 +22,11 @@ typedef NS_ENUM(NSInteger, FooterMode) {
 };
 static const NSTimeInterval GlobalHotkeyPopoverDuration = 1.4;
 
-@interface MarqueeLabel : NSView
-@property (copy, nonatomic) NSString *stringValue;
-@property (nonatomic, getter=isActive) BOOL active;
-- (void)restartScroll;
-- (void)restartScrollAfterDelay:(NSTimeInterval)delay;
-@end
-
-@implementation MarqueeLabel {
-    NSAttributedString *_text;
-    NSTrackingArea *_trackingArea;
-    NSTimer *_scrollTimer;
-    CAGradientLayer *_edgeMask;
-    BOOL _hovered;
-    CGFloat _textWidth, _overflow, _offset;
-    NSSize _layoutSize;
-}
-- (instancetype)initWithFrame:(NSRect)frame {
-    if ((self = [super initWithFrame:frame])) {
-        self.wantsLayer = YES;
-        self.layer.masksToBounds = YES;
-        _edgeMask = [CAGradientLayer layer];
-        _edgeMask.startPoint = CGPointMake(0, .5);
-        _edgeMask.endPoint = CGPointMake(1, .5);
-    }
-    return self;
-}
-- (void)dealloc { [_scrollTimer invalidate]; }
-- (void)setStringValue:(NSString *)stringValue {
-    stringValue = [stringValue copy] ?: @"";
-    if ([_stringValue isEqualToString:stringValue]) return;
-    _stringValue = stringValue;
-    _text = [[NSAttributedString alloc] initWithString:stringValue attributes:@{
-        NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightMedium],
-        NSForegroundColorAttributeName: NSColor.secondaryLabelColor,
-    }];
-    _textWidth = ceil(_text.size.width) + 4;
-    self.toolTip = stringValue.length ? stringValue : nil;
-    [self layoutLabel];
-}
-- (void)setActive:(BOOL)active {
-    if (_active == active) return;
-    _active = active;
-    if (active && _hovered) [self restartScrollAfterDelay:.5];
-    else [self restartScroll];
-}
-- (void)layout {
-    [super layout];
-    if (!NSEqualSizes(_layoutSize, self.bounds.size)) [self layoutLabel];
-}
-- (void)drawRect:(NSRect)dirtyRect {
-    // Redraw the complete string at its current offset. Moving an NSTextField
-    // can move only the portion AppKit rasterized inside the original clip.
-    CGFloat x = _overflow > 0 ? 2 - _offset : (NSWidth(self.bounds) - _text.size.width) / 2;
-    CGFloat y = floor((NSHeight(self.bounds) - _text.size.height) / 2);
-    [_text drawAtPoint:NSMakePoint(x, y)];
-}
-- (void)updateTrackingAreas {
-    [super updateTrackingAreas];
-    if (_trackingArea) [self removeTrackingArea:_trackingArea];
-    _trackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect
-        options:NSTrackingMouseEnteredAndExited | NSTrackingActiveInActiveApp | NSTrackingInVisibleRect
-        owner:self userInfo:nil];
-    [self addTrackingArea:_trackingArea];
-}
-- (void)mouseEntered:(NSEvent *)event {
-    _hovered = YES;
-    [self restartScrollAfterDelay:.5];
-}
-- (void)mouseExited:(NSEvent *)event {
-    _hovered = NO;
-    [self restartScroll];
-}
-- (void)layoutLabel {
-    _layoutSize = self.bounds.size;
-    _overflow = fmax(0, _textWidth - NSWidth(self.bounds));
-    if (self.active && _hovered) [self restartScrollAfterDelay:.5];
-    else [self restartScroll];
-}
-- (void)updateEdgeFade {
-    CGFloat fadeWidth = fmin(8, NSWidth(self.bounds) / 2);
-    CGFloat left = fmin(fadeWidth, _offset) / fmax(1, NSWidth(self.bounds));
-    CGFloat right = fmin(fadeWidth, _overflow - _offset) / fmax(1, NSWidth(self.bounds));
-    [CATransaction begin];
-    CATransaction.disableActions = YES;
-    _edgeMask.frame = self.bounds;
-    _edgeMask.colors = @[(id)(left > 0 ? NSColor.clearColor : NSColor.blackColor).CGColor,
-        (id)NSColor.blackColor.CGColor, (id)NSColor.blackColor.CGColor,
-        (id)(right > 0 ? NSColor.clearColor : NSColor.blackColor).CGColor];
-    _edgeMask.locations = @[@0, @(left), @(1 - right), @1];
-    self.layer.mask = _overflow > 0 ? _edgeMask : nil;
-    [CATransaction commit];
-}
-- (void)restartScrollAfterDelay:(NSTimeInterval)delay {
-    [self restartScroll];
-    if (!self.active || !_hovered || _overflow <= 0) return;
-    NSTimeInterval start = CACurrentMediaTime() + delay;
-    __weak MarqueeLabel *weakSelf = self;
-    _scrollTimer = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *timer) {
-        MarqueeLabel *self = weakSelf;
-        if (!self) { [timer invalidate]; return; }
-        self->_offset = fmin(self->_overflow, fmax(0, CACurrentMediaTime() - start) * 24);
-        [self updateEdgeFade];
-        self.needsDisplay = YES;
-        if (self->_offset >= self->_overflow) {
-            [timer invalidate];
-            self->_scrollTimer = nil;
-        }
-    }];
-    [NSRunLoop.mainRunLoop addTimer:_scrollTimer forMode:NSRunLoopCommonModes];
-}
-- (void)restartScroll {
-    [_scrollTimer invalidate];
-    _scrollTimer = nil;
-    _offset = 0;
-    [self updateEdgeFade];
-    self.needsDisplay = YES;
-}
-- (BOOL)isAccessibilityElement { return YES; }
-- (NSString *)accessibilityRole { return NSAccessibilityStaticTextRole; }
-- (id)accessibilityValue { return self.stringValue; }
-@end
-
-static void animateBlur(NSView *view, CGFloat from, CGFloat to, NSTimeInterval duration) {
-    CIFilter *blur = [CIFilter filterWithName:@"CIGaussianBlur"];
-    blur.name = @"footerBlur";
-    [blur setValue:@(to) forKey:kCIInputRadiusKey];
-    [CATransaction begin];
-    CATransaction.disableActions = YES;
-    view.layer.filters = @[blur];
-    [CATransaction commit];
-    CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"filters.footerBlur.inputRadius"];
-    animation.fromValue = @(from);
-    animation.toValue = @(to);
-    animation.duration = duration;
-    animation.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
-    [view.layer addAnimation:animation forKey:@"footerBlur"];
-}
-
-static void animateScaleIn(NSView *view, NSTimeInterval duration) {
-    [CATransaction begin];
-    CATransaction.disableActions = YES;
-    view.layer.transform = CATransform3DIdentity;
-    [CATransaction commit];
-    CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
-    animation.fromValue = @.97;
-    animation.toValue = @1;
-    animation.duration = duration;
-    animation.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
-    [view.layer addAnimation:animation forKey:@"footerScale"];
-}
-
-static void clearBlur(NSView *view) {
-    [view.layer removeAnimationForKey:@"footerBlur"];
-    [view.layer removeAnimationForKey:@"footerScale"];
-    [CATransaction begin];
-    CATransaction.disableActions = YES;
-    view.layer.filters = nil;
-    [CATransaction commit];
-}
-
 @interface AppDelegate () <NSPopoverDelegate> {
     FilterControl _control;
     unsigned _refreshTick;
     NSInteger _statusAngle;
-    BOOL _selectedOnly, _suspended;
+    BOOL _suspended;
     BOOL _showSettingsAfterPopoverCloses;
     NSTimeInterval _filterReadoutUntil;
     NSUInteger _footerTransition;
@@ -194,8 +38,12 @@ static void clearBlur(NSView *view) {
 @property NSPopover *popover;
 @property NSButton *sourceButton;
 @property (copy) NSString *selectedBundle;
+@property (copy) NSArray<NSString *> *targetBundles;
 @property (copy) NSString *shortcutTitle;
 @property SettingsController *settings;
+@property BOOL discoActive;
+@property TwiddleControlServer *controlServer;
+@property PlaybackActivity *playbackActivity;
 @property FilterKnob *knob;
 @property NSTextField *readout;
 @property MarqueeLabel *nowPlayingReadout;
@@ -254,10 +102,13 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     _control.preset = [defaults objectForKey:@"fnPreset"] ? [defaults doubleForKey:@"fnPreset"] : defaultPreset;
     if (!isfinite(_control.preset)) _control.preset = defaultPreset;
     _control.preset = fmin(1, fmax(-1, _control.preset));
-    _selectedOnly = [defaults objectForKey:@"spotifyOnly"] ? [defaults boolForKey:@"spotifyOnly"] : YES;
     self.selectedBundle = [defaults stringForKey:@"selectedBundle"] ?: @"com.spotify.client";
+    if (![defaults objectForKey:@"targetBundles"]) [defaults setObject:@[self.selectedBundle] forKey:@"targetBundles"];
+    self.targetBundles = [defaults stringArrayForKey:@"targetBundles"] ?: @[];
+    self.selectedBundle = self.targetBundles.firstObject ?: @"";
     self.shortcutTitle = [defaults stringForKey:@"holdShortcutTitle"] ?: @"None";
     self.engine = [AudioEngine new];
+    self.playbackActivity = [PlaybackActivity new];
     self.spotifyNowPlaying = [SpotifyNowPlaying new];
     self.shortcutMonitor = [HoldShortcutMonitor new];
     self.globalFilterHotkeys = [GlobalFilterHotkeys new];
@@ -272,6 +123,19 @@ static NSImage *knobStatusImage(NSInteger degrees) {
                         modifiers:(CGEventFlags)[defaults integerForKey:@"holdShortcutModifiers"]];
     }
     self.settings = [SettingsController new];
+    self.controlServer = [[TwiddleControlServer alloc] initWithPath:twiddleControlPath() handler:^NSDictionary *(NSDictionary *command) {
+        return [weakSelf performCLICommand:command];
+    }];
+    if (![self.controlServer start]) NSLog(@"Twiddle CLI control channel unavailable.");
+    self.settings.shortcutAccessRequested = ^{
+        if (CGPreflightPostEventAccess()) {
+            [weakSelf.globalFilterHotkeys stop];
+            [weakSelf.globalFilterHotkeys start];
+        } else {
+            [weakSelf openAccessibilityPermissions:nil];
+        }
+        [weakSelf refreshShortcutAccess];
+    };
     self.settings.menuBarSettingsRequested = ^{ [weakSelf openMenuBarSettings:nil]; };
     self.settings.presetChanged = ^(double value) {
         AppDelegate *self = weakSelf;
@@ -281,17 +145,24 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         [self updateControl];
     };
     self.settings.colorsChanged = ^{ weakSelf.knob.needsDisplay = YES; };
-    self.settings.microphoneChanged = ^ { [weakSelf updateMicrophone]; };
+    self.settings.discoChanged = ^(BOOL active) {
+        weakSelf.discoActive = active;
+        [weakSelf updateAutomaticTriggers];
+    };
+    self.settings.microphoneChanged = ^ { [weakSelf updateAutomaticTriggers]; };
     self.settings.hapticsChanged = ^(BOOL enabled) { weakSelf.knob.hapticsEnabled = enabled; };
     self.settings.recordingChanged = ^(BOOL recording) { weakSelf.shortcutMonitor.recording = recording; };
-    self.settings.appChanged = ^(NSString *bundle) {
+    self.settings.appsChanged = ^{
         AppDelegate *self = weakSelf;
-        if (!self || [self.selectedBundle isEqualToString:bundle]) return;
-        self.selectedBundle = bundle;
-        [defaults setObject:bundle forKey:@"selectedBundle"];
+        if (!self) return;
+        NSArray *targets = [defaults stringArrayForKey:@"targetBundles"] ?: @[];
+        BOOL targetsChanged = ![targets isEqualToArray:self.targetBundles];
+        self.targetBundles = targets;
+        self.selectedBundle = targets.firstObject ?: @"";
+        if (targetsChanged) [self start];
         [self updateSourceButton];
         [self refreshNowPlaying];
-        if (self->_selectedOnly) [self start];
+        [self updateAutomaticTriggers];
     };
     self.settings.shortcutChanged = ^(NSInteger keyCode, NSEventModifierFlags flags, NSString *title) {
         AppDelegate *self = weakSelf;
@@ -347,7 +218,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 - (void)buildPopover {
     NSRect bounds = NSMakeRect(0, 0, 240, 216);
     NSView *content = [[NSView alloc] initWithFrame:bounds];
-    self.sourceButton = [NSButton buttonWithImage:[SettingsController iconForBundle:self.selectedBundle]
+    self.sourceButton = [NSButton buttonWithImage:[ApplicationInfo iconForBundle:self.selectedBundle]
         target:self action:@selector(scopeChanged:)];
     self.sourceButton.frame = NSMakeRect(18, 12, 28, 28);
     self.sourceButton.bordered = NO;
@@ -429,7 +300,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     fn.state = self.shortcutMonitor.enabled ? NSControlStateValueOn : NSControlStateValueOff;
     NSMenuItem *permissions = [menu addItemWithTitle:@"Input Monitoring…" action:@selector(openPermissions:) keyEquivalent:@""];
     permissions.target = self;
-    NSMenuItem *topRowPermissions = [menu addItemWithTitle:@"Top-row Shortcut Access…" action:@selector(openAccessibilityPermissions:) keyEquivalent:@""];
+    NSMenuItem *topRowPermissions = [menu addItemWithTitle:CGPreflightPostEventAccess() ? @"Top-row Shortcut Access…" : @"Enable ⌥F10–F12 — Accessibility…" action:@selector(openAccessibilityPermissions:) keyEquivalent:@""];
     topRowPermissions.target = self;
     [menu addItem:NSMenuItem.separatorItem];
     [menu addItemWithTitle:@"Quit Twiddle" action:@selector(terminate:) keyEquivalent:@"q"];
@@ -438,7 +309,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     self.statusItem.menu = nil;
 }
 - (void)showSettings:(id)sender {
-    self.settings.selectedBundle = self.selectedBundle;
+    [self refreshShortcutAccess];
     self.settings.shortcutTitle = self.shortcutTitle;
     self.settings.presetValue = _control.preset;
     if (self.popover.shown) {
@@ -460,6 +331,11 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 }
 - (void)openPermissions:(id)sender {
     [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"]];
+}
+- (void)refreshShortcutAccess {
+    BOOL granted = CGPreflightPostEventAccess();
+    if (!_suspended && granted && !self.globalFilterHotkeys.enabled) [self.globalFilterHotkeys start];
+    [self.settings updateShortcutAccess:granted ready:self.globalFilterHotkeys.enabled error:self.globalFilterHotkeys.errorMessage];
 }
 - (void)openAccessibilityPermissions:(id)sender {
     [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
@@ -610,31 +486,65 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         [self updateControl];
     }];
 }
+- (NSDictionary *)performCLICommand:(NSDictionary *)request {
+    NSString *command = request[@"command"];
+    double now = NSProcessInfo.processInfo.systemUptime;
+    if ([command isEqual:@"set"] || [command isEqual:@"apply"]) {
+        // Explicit CLI filter changes have the same priority as manual bypass.
+        controlReset(&_control, now);
+        controlSetBaseline(&_control, [command isEqual:@"apply"] ? _control.preset : [request[@"value"] doubleValue], now);
+    } else if ([command isEqual:@"preset"]) {
+        controlSetPreset(&_control, [request[@"value"] doubleValue], now);
+        [NSUserDefaults.standardUserDefaults setDouble:_control.preset forKey:@"fnPreset"];
+        self.settings.presetValue = _control.preset;
+    } else if ([command isEqual:@"reset"]) {
+        controlReset(&_control, now);
+    } else if ([command isEqual:@"disco"]) {
+        [self.settings setDiscoEnabled:[request[@"enabled"] boolValue]];
+    } else if ([command isEqual:@"settings"]) {
+        [self showSettings:nil];
+    }
+    [self updateControl];
+    return @{@"ok":@YES, @"running":@(self.engine.running), @"value":@(controlValue(&_control, now)),
+        @"target":@(_control.to), @"baseline":@(_control.baseline), @"preset":@(_control.preset),
+        @"autoApplyActive":@(_control.held), @"automationSuppressed":@(_control.suppressTriggers),
+        @"disco":@(self.discoActive), @"targetApps":self.targetBundles ?: @[],
+        @"triggerApps":[NSUserDefaults.standardUserDefaults stringArrayForKey:@"triggerBundles"] ?: @[],
+        @"audioError":self.engine.errorMessage ?: (id)NSNull.null};
+}
 - (void)shortcutHeld:(BOOL)held {
     if (held && !self.engine.running) return;
     controlSetTrigger(&_control, PresetTriggerShortcut, held, NSProcessInfo.processInfo.systemUptime);
     [self updateControl];
 }
-- (void)updateMicrophone {
+- (void)updateAutomaticTriggers {
+    controlSetTrigger(&_control, PresetTriggerDisco, !_suspended && self.engine.running && self.discoActive, NSProcessInfo.processInfo.systemUptime);
     BOOL active = !_suspended && self.engine.running && [NSUserDefaults.standardUserDefaults boolForKey:@"microphoneEnabled"] && microphoneActive([NSUserDefaults.standardUserDefaults stringForKey:@"microphoneScope"]);
     controlSetTrigger(&_control, PresetTriggerMicrophone, active, NSProcessInfo.processInfo.systemUptime);
+    NSArray *processes = !_suspended && self.engine.running ? activeOutputProcesses([NSSet setWithArray:[NSUserDefaults.standardUserDefaults stringArrayForKey:@"triggerBundles"] ?: @[]]) : @[];
+    [self.playbackActivity updateProcesses:processes];
+    controlSetTrigger(&_control, PresetTriggerPlayback, self.playbackActivity.audible, NSProcessInfo.processInfo.systemUptime);
     [self updateControl];
 }
 - (void)updateSourceButton {
-    NSString *name = [SettingsController nameForBundle:self.selectedBundle];
-    self.sourceButton.image = _selectedOnly ? [SettingsController iconForBundle:self.selectedBundle] : symbol(@"desktopcomputer");
-    self.sourceButton.accessibilityLabel = _selectedOnly ? [name stringByAppendingString:@" only"] : @"All Mac audio";
-    self.sourceButton.toolTip = _selectedOnly ? [NSString stringWithFormat:@"%@ only — click for all Mac audio", name] :
-        [NSString stringWithFormat:@"All Mac audio — click for %@ only", name];
+    NSString *name = self.targetBundles.count == 1 ? [ApplicationInfo nameForBundle:self.selectedBundle] :
+        self.targetBundles.count ? [NSString stringWithFormat:@"%lu apps", (unsigned long)self.targetBundles.count] : @"No apps selected";
+    self.sourceButton.image = self.targetBundles.count == 1 ? [ApplicationInfo iconForBundle:self.selectedBundle] : symbol(@"square.grid.2x2");
+    self.sourceButton.accessibilityLabel = [@"Apps to Twiddle: " stringByAppendingString:name];
+    self.sourceButton.toolTip = [name stringByAppendingString:@" — choose apps to Twiddle"];
 }
 - (void)scopeChanged:(id)sender {
-    _selectedOnly = !_selectedOnly;
-    [NSUserDefaults.standardUserDefaults setBool:_selectedOnly forKey:@"spotifyOnly"];
-    [self updateSourceButton];
-    [self start];
+    [self showSettings:nil];
+    [self.settings showApps:nil];
 }
 - (void)start {
-    while (!_suspended && ![self.engine startWithBundles:_selectedOnly ? [NSSet setWithObject:self.selectedBundle] : nil probe:NO]) {
+    if (!self.targetBundles.count) {
+        [self.engine stop];
+        [self updateAutomaticTriggers];
+        [self updateControl];
+        return;
+    }
+    while (!_suspended && ![self.engine startWithBundles:[NSSet setWithArray:self.targetBundles] probe:NO]) {
         [self updateControl];
         NSAlert *alert = [NSAlert new];
         alert.messageText = @"Couldn’t start audio";
@@ -646,23 +556,24 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [self updateControl];
 }
 - (void)refresh:(NSTimer *)timer {
+    controlSetTrigger(&_control, PresetTriggerPlayback, !_suspended && self.engine.running && self.playbackActivity.audible, NSProcessInfo.processInfo.systemUptime);
     [self updateControl];
     _refreshTick++;
     if (_refreshTick % 15 == 0) {
-        [self updateMicrophone];
+        [self updateAutomaticTriggers];
         if (self.engine.running && ![self.engine checkRoute]) {
+            [self.playbackActivity stop];
             controlReset(&_control, NSProcessInfo.processInfo.systemUptime);
             if (!_suspended) [self start];
         }
     }
     if (_refreshTick % 60 == 0 && self.popover.shown) [self refreshNowPlaying];
-    if (_refreshTick % 60 == 0 && !self.globalFilterHotkeys.enabled && CGPreflightPostEventAccess())
-        [self.globalFilterHotkeys start];
+    if (_refreshTick % 60 == 0) [self refreshShortcutAccess];
 }
 - (void)suspend:(NSNotification *)notification {
     _suspended = YES;
     [self.shortcutMonitor disable];
-    [self updateMicrophone];
+    [self updateAutomaticTriggers];
     controlReset(&_control, NSProcessInfo.processInfo.systemUptime);
     [self.engine stop];
 }
@@ -673,11 +584,13 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [self start];
 }
 - (void)applicationWillTerminate:(NSNotification *)notification {
+    [self.controlServer stop];
     [self.timer invalidate];
     [self.globalHotkeyPopoverTimer invalidate];
     [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:self];
     [self.globalFilterHotkeys stop];
     [self.shortcutMonitor disable];
+    [self.playbackActivity stop];
     [self.engine stop];
 }
 @end

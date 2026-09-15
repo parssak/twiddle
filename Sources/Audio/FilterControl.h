@@ -41,14 +41,16 @@ static inline void controlSetHeld(FilterControl *c, bool held, double now) {
     controlTransition(c, held ? c->preset : c->baseline, held ? .18 : .4, now);
 }
 
-enum { PresetTriggerShortcut = 1, PresetTriggerMicrophone = 2 };
+enum { PresetTriggerShortcut = 1, PresetTriggerMicrophone = 2, PresetTriggerPlayback = 4, PresetTriggerDisco = 8 };
 
 static inline void controlSetTrigger(FilterControl *c, unsigned source, bool active, double now) {
     unsigned triggers = active ? c->triggers | source : c->triggers & ~source;
     if (triggers == c->triggers) return;
     c->triggers = triggers;
     if (!triggers) c->suppressTriggers = false;
+    bool wasHeld = c->held;
     controlSetHeld(c, triggers && !c->suppressTriggers, now);
+    if (wasHeld && !c->held && source == PresetTriggerPlayback) c->duration = .18;
 }
 
 static inline void controlSetPreset(FilterControl *c, double value, double now) {

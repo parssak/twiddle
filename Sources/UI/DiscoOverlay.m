@@ -1,4 +1,6 @@
 #import "DiscoOverlay.h"
+#import "DiscoMotion.h"
+#import "DiscoNowPlaying.h"
 #import <Cocoa/Cocoa.h>
 #import <MetalKit/MetalKit.h>
 #import <QuartzCore/QuartzCore.h>
@@ -10,27 +12,62 @@ typedef struct {
     vector_float4 canvas;
     // Logical top-left origin and size of this render pass within the screen.
     vector_float4 viewport;
-    // time and deployment live in x/y; z/w are reserved.
+    // Elapsed time, deployment, extra swipe rotation, and resting depth.
     vector_float4 timing;
+    vector_float4 motion;
+    vector_float4 album[4];
 } DiscoUniforms;
 
 // A reversible playhead keeps interrupted hovers continuous. The ball
-// springs into place during 0...0.95, then the lamp switches on at 1.0...1.12.
-static const double DiscoDuration = 1.12;
+// drops in after the initial .30-second dim, then springs into place.
+static const double DiscoDimmingDuration = .30;
+static const double DiscoDuration = 1.42;
+static const float DiscoRestingDepth = .16f;
 @interface DiscoAnimation : NSObject
 - (float)deploymentAt:(CFTimeInterval)now;
 - (double)setActive:(BOOL)active;
 @property (readonly) CFTimeInterval startedAt;
+@property (readonly) DiscoMotion *motion;
+- (void)setAlbumColors:(NSArray<NSColor *> *)colors;
+- (vector_float4)albumColor:(NSUInteger)index at:(double)time;
 @end
 
 @implementation DiscoAnimation {
     double _from;
     CFTimeInterval _changedAt;
     BOOL _active;
+    NSArray<NSColor *> *_albumColors;
+    vector_float4 _albumFrom[4], _albumTo[4];
+    double _albumChangedAt;
 }
 - (instancetype)init {
-    if ((self = [super init])) _startedAt = _changedAt = CACurrentMediaTime();
+    if ((self = [super init])) {
+        _startedAt = _changedAt = CACurrentMediaTime();
+        _motion = [DiscoMotion new];
+    }
     return self;
+}
+- (vector_float4)albumColor:(NSUInteger)index at:(double)time {
+    float t = fmax(0, fmin(1, (time-_albumChangedAt)/.8));
+    t = t*t*(3-2*t);
+    return simd_mix(_albumFrom[index], _albumTo[index], t);
+}
+- (void)setAlbumColors:(NSArray<NSColor *> *)colors {
+    if ([_albumColors isEqualToArray:colors]) return;
+    double now = CACurrentMediaTime();
+    for (NSUInteger i=0;i<4;i++) {
+        _albumFrom[i] = [self albumColor:i at:now];
+        if (colors.count) {
+            NSColor *color = colors[i % colors.count];
+            _albumTo[i] = (vector_float4){color.redComponent,color.greenComponent,color.blueComponent,1};
+            if (_albumFrom[i].w == 0) _albumFrom[i] = (vector_float4){color.redComponent,color.greenComponent,color.blueComponent,0};
+        } else {
+            _albumTo[i] = _albumFrom[i];
+            _albumTo[i].w = 0;
+        }
+    }
+    _albumColors = [colors copy];
+    _albumChangedAt = now;
 }
 - (float)deploymentAt:(CFTimeInterval)now {
     double elapsed = now - _changedAt;
@@ -41,6 +78,7 @@ static const double DiscoDuration = 1.12;
     _from = [self deploymentAt:now];
     _changedAt = now;
     _active = active;
+    if (!active) [_motion reset];
     return active ? DiscoDuration - _from : _from;
 }
 @end
@@ -52,37 +90,89 @@ static const double DiscoDuration = 1.12;
 - (BOOL)canBecomeMainWindow { return NO; }
 @end
 
+static NSPoint discoBallCenter(DiscoAnimation *animation, NSRect screen, double now) {
+    float drop = fmaxf(0, [animation deploymentAt:now]-DiscoDimmingDuration);
+    float spring = expf(-4.2f*drop)*(cosf(9.5f*drop) + .442105f*sinf(9.5f*drop));
+    float edge = fmaxf(0, fminf(1, (drop-.70f)/.25f));
+    float fall = 1-spring*(1-edge*edge*(3-2*edge));
+    vector_float2 offset = [animation.motion offsetAt:now];
+    return NSMakePoint(NSMidX(screen)+offset.x*NSHeight(screen),
+        NSMaxY(screen)-(-.035*1.8+(DiscoRestingDepth+.035*1.8)*fall+offset.y)*NSHeight(screen));
+}
+
 @interface DiscoBallView : MTKView
-- (instancetype)initWithFrame:(NSRect)frame device:(id<MTLDevice>)device
-                     animation:(DiscoAnimation *)animation screenHeight:(CGFloat)screenHeight;
+@property DiscoAnimation *animation;
+@property NSScreen *discoScreen;
+@property (readonly) BOOL trackingPull;
+- (void)cancelPull;
 @property (copy) void (^cancelHandler)(void);
 @end
 @implementation DiscoBallView {
-    __weak DiscoAnimation *_animation;
-    CGFloat _screenHeight;
-}
-- (instancetype)initWithFrame:(NSRect)frame device:(id<MTLDevice>)device
-                     animation:(DiscoAnimation *)animation screenHeight:(CGFloat)screenHeight {
-    if ((self = [super initWithFrame:frame device:device])) {
-        _animation = animation;
-        _screenHeight = screenHeight;
-    }
-    return self;
+    NSPoint _grabPoint;
+    BOOL _moved;
+    NSUInteger _hapticStep;
+    double _lastHapticAt;
 }
 - (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
 - (void)mouseDown:(NSEvent *)event {
-    float drop = [_animation deploymentAt:CACurrentMediaTime()];
-    float spring = expf(-4.2f * drop) *
-        (cosf(9.5f * drop) + 0.442105f * sinf(9.5f * drop));
-    float edge = fmaxf(0, fminf(1, (drop - 0.70f) / 0.25f));
-    edge = edge * edge * (3 - 2 * edge);
-    float fall = 1 - spring * (1 - edge);
-    CGFloat radius = _screenHeight * 0.027;
-    CGFloat ballYFromTop = (-0.027 * 1.8 + (0.10 + 0.027 * 1.8) * fall) * _screenHeight;
-    NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-    NSPoint center = NSMakePoint(NSMidX(self.bounds), NSHeight(self.bounds) - ballYFromTop);
-    if (hypot(point.x - center.x, point.y - center.y) <= radius * 1.18 && self.cancelHandler)
-        self.cancelHandler();
+    double now = CACurrentMediaTime();
+    NSPoint point = [self.window convertPointToScreen:event.locationInWindow];
+    NSPoint center = discoBallCenter(self.animation, self.discoScreen.frame, now);
+    if (hypot(point.x-center.x, point.y-center.y) > NSHeight(self.discoScreen.frame)*.035*1.18) return;
+    _grabPoint = point;
+    _moved = NO;
+    _hapticStep = 0;
+    _lastHapticAt = 0;
+    _trackingPull = YES;
+    [self.animation.motion beginAt:now];
+    [NSCursor.closedHandCursor set];
+}
+- (void)scrollWheel:(NSEvent *)event {
+    // Apply only finger movement; our own friction replaces macOS scroll momentum.
+    if (_trackingPull || !event.hasPreciseScrollingDeltas || event.momentumPhase != NSEventPhaseNone) return;
+    double now = CACurrentMediaTime();
+    NSPoint point = [self.window convertPointToScreen:event.locationInWindow];
+    NSPoint center = discoBallCenter(self.animation, self.discoScreen.frame, now);
+    if (hypot(point.x-center.x, point.y-center.y) > NSHeight(self.discoScreen.frame)*.035*1.18) return;
+    double delta = fabs(event.scrollingDeltaX) >= fabs(event.scrollingDeltaY)
+        ? event.scrollingDeltaX : event.scrollingDeltaY;
+    if (event.isDirectionInvertedFromDevice) delta = -delta;
+    [self.animation.motion addSpin:delta*.035 at:now];
+}
+- (void)mouseDragged:(NSEvent *)event {
+    if (!_trackingPull || !self.animation.motion.dragging) return;
+    NSPoint point = [self.window convertPointToScreen:event.locationInWindow];
+    vector_float2 delta = {(float)(point.x-_grabPoint.x), (float)(_grabPoint.y-point.y)};
+    if (simd_length(delta) > 3) _moved = YES;
+    double now = CACurrentMediaTime();
+    BOOL snapped = [self.animation.motion pull:delta/(float)NSHeight(self.discoScreen.frame) at:now];
+    // Progress detents get denser near the latch; holding still never buzzes.
+    static const float detents[] = {.18f, .36f, .52f, .66f, .78f, .88f, .95f};
+    BOOL tick = NO;
+    while (_hapticStep < sizeof(detents)/sizeof(detents[0]) &&
+        self.animation.motion.pullProgress >= detents[_hapticStep]) {
+        _hapticStep++;
+        tick = YES;
+    }
+    if ([NSUserDefaults.standardUserDefaults boolForKey:@"hapticsEnabled"] &&
+        (snapped || (tick && now-_lastHapticAt >= .035))) {
+        [NSHapticFeedbackManager.defaultPerformer performFeedbackPattern:
+            snapped ? NSHapticFeedbackPatternAlignment : NSHapticFeedbackPatternLevelChange
+            performanceTime:NSHapticFeedbackPerformanceTimeNow];
+        _lastHapticAt = now;
+    }
+}
+- (void)cancelPull {
+    if (_trackingPull) [NSCursor.arrowCursor set];
+    _trackingPull = NO;
+    [self.animation.motion reset];
+}
+- (void)mouseUp:(NSEvent *)event {
+    if (!_trackingPull) return;
+    _trackingPull = NO;
+    [self.animation.motion releaseAt:CACurrentMediaTime()];
+    [NSCursor.arrowCursor set];
+    if (!_moved && self.cancelHandler) self.cancelHandler();
 }
 @end
 
@@ -120,6 +210,22 @@ static const double DiscoDuration = 1.12;
     id<CAMetalDrawable> drawable = view.currentDrawable;
     if (!pass || !drawable) return;
     CFTimeInterval now = CACurrentMediaTime();
+    if (_ballPass) {
+        DiscoBallView *ball = (DiscoBallView *)view;
+        NSPoint center = discoBallCenter(_animation, _screen.frame, now);
+        CGFloat padding = NSHeight(_screen.frame)*.049;
+        NSRect frame = NSMakeRect(fmin(NSMidX(_screen.frame), center.x)-padding,
+            center.y-padding, fabs(center.x-NSMidX(_screen.frame))+2*padding,
+            fmax(2*padding, NSMaxY(_screen.frame)-center.y+padding));
+        if (!NSEqualRects(view.window.frame, frame)) {
+            [view.window setFrame:frame display:NO];
+            view.drawableSize = NSMakeSize(NSWidth(view.bounds)*_screen.backingScaleFactor,
+                NSHeight(view.bounds)*_screen.backingScaleFactor);
+        }
+        NSPoint mouse = NSEvent.mouseLocation;
+        BOOL overBall = hypot(mouse.x-center.x, mouse.y-center.y) <= NSHeight(_screen.frame)*.035*1.18;
+        view.window.ignoresMouseEvents = !ball.trackingPull && !overBall;
+    }
     NSRect windowFrame = view.window.frame;
     vector_float4 viewport = {
         (float)(NSMinX(windowFrame) - NSMinX(_screen.frame)),
@@ -128,12 +234,15 @@ static const double DiscoDuration = 1.12;
         (float)NSHeight(windowFrame),
     };
     float pointPerPixel = (float)(NSHeight(view.bounds) / fmax(view.drawableSize.height, 1.0));
+    vector_float2 offset = [_animation.motion offsetAt:now];
     DiscoUniforms uniforms = {
         .canvas = {(float)NSWidth(_screen.frame), (float)NSHeight(_screen.frame),
             pointPerPixel / (float)NSHeight(_screen.frame), _ballPass ? 1.0f : 0.0f},
         .viewport = viewport,
-        .timing = {(float)(now - _animation.startedAt), [_animation deploymentAt:now], 0, 0},
+        .timing = {(float)(now - _animation.startedAt), [_animation deploymentAt:now], (float)[_animation.motion spinAngleAt:now], DiscoRestingDepth},
+        .motion = {offset.x, offset.y, (float)(_animation.motion.palette % 4), [_animation.motion paletteBlendAt:now]},
     };
+    for (NSUInteger i=0;i<4;i++) uniforms.album[i] = [_animation albumColor:i at:now];
     id<MTLCommandBuffer> buffer = [_commandQueue commandBuffer];
     id<MTLRenderCommandEncoder> encoder = [buffer renderCommandEncoderWithDescriptor:pass];
     [encoder setRenderPipelineState:_pipeline];
@@ -159,13 +268,14 @@ static const double DiscoDuration = 1.12;
     BOOL _visible;
     NSUInteger _transitionGeneration;
     id _escapeMonitor;
+    DiscoNowPlaying *_nowPlaying;
 }
 
 static NSString *DiscoShaderSource(void) {
     return @"#include <metal_stdlib>\n"
         "using namespace metal;\n"
         "struct Raster { float4 position [[position]]; float2 uv; };\n"
-        "struct Uniforms { float4 canvas; float4 viewport; float4 timing; };\n"
+        "struct Uniforms { float4 canvas; float4 viewport; float4 timing; float4 motion; float4 album[4]; };\n"
         "vertex Raster discoVertex(uint id [[vertex_id]]) {\n"
         "  const float2 positions[3] = {float2(-1,-1), float2(3,-1), float2(-1,3)};\n"
         "  const float2 uvs[3] = {float2(0,1), float2(2,1), float2(0,-1)};\n"
@@ -174,8 +284,21 @@ static NSString *DiscoShaderSource(void) {
         "float hash21(float2 p) { return fract(sin(dot(p,float2(127.1,311.7))) * 43758.5453); }\n"
         // Sample deterministic mirror cells from a periodic longitude grid.
         // Divergence widens each screen-clipped volume away from its source.
-        "float beamField(float2 q, float rotation, float radius) {\n"
-        "  float energy=0.0;\n"
+        "float3 fallbackTint(float i, int palette) {\n"
+        "  float f=hash21(float2(i,31.0));\n"
+        "  if (palette==1) return mix(float3(1,.18,.38),float3(1,.65,.12),f);\n"
+        "  if (palette==2) return mix(float3(.12,.85,1),float3(.65,.25,1),f);\n"
+        "  if (palette==3) return .55+.45*cos(6.2831853*(f+float3(0,.333,.667)));\n"
+        "  return float3(1);\n"
+        "}\n"
+        "float3 beamTint(float i, int palette, constant Uniforms &u) {\n"
+        "  if (palette!=0) return fallbackTint(i,palette);\n"
+        "  int index=int(hash21(float2(i,31.0))*4.0);\n"
+        "  float4 accent=u.album[index];\n"
+        "  return mix(float3(1),accent.rgb,accent.a);\n"
+        "}\n"
+        "float3 beamField(float2 q, float rotation, float radius, float palette, float blend, constant Uniforms &u) {\n"
+        "  float3 energy=float3(0.0);\n"
         "  const float longitudeCells=56.0;\n"
         "  const float longitudeDensity=longitudeCells/(2.0*3.14159265359);\n"
         "  for (int i=0;i<48;i++) {\n"
@@ -210,32 +333,32 @@ static NSString *DiscoShaderSource(void) {
         "    float directionality=smoothstep(0.10,0.72,projectedLength);\n"
         "    float visibility=illumination*visibleFacet*directionality;\n"
         "    float volume=(core*0.40+body*0.22+haze)/(1.0+along*0.50);\n"
-        "    energy+=volume*start*brightness*visibility;\n"
+        "    float3 tint=mix(beamTint(fi,(int(palette)+3)%4,u),beamTint(fi,int(palette),u),blend); energy+=tint*volume*start*brightness*visibility;\n"
         "  }\n"
         "  return 1.0-exp(-energy*1.55);\n"
         "}\n"
         "fragment float4 discoFragment(Raster in [[stage_in]], constant Uniforms &u [[buffer(0)]]) {\n"
         "  float2 canvasPosition=u.viewport.xy+in.uv*u.viewport.zw;\n"
         "  float2 uv=canvasPosition/u.canvas.xy; float aspect=u.canvas.x/max(u.canvas.y,1.0);\n"
-        "  float t=u.timing.x; float drop=u.timing.y;\n"
+        "  float t=u.timing.x; float deployment=u.timing.y; float drop=max(0.0,deployment-0.30);\n"
         "  float spring=exp(-4.2*drop)*(cos(9.5*drop)+0.442105*sin(9.5*drop));\n"
         "  float fall=1.0-spring*(1.0-smoothstep(0.70,0.95,drop));\n"
-        "  float lamp=smoothstep(1.0,1.12,drop); float radius=0.027;\n"
-        "  float ballY=mix(-radius*1.8,0.10,fall);\n"
-        "  float rotation=t*0.30;\n"
-        "  float2 p=float2((uv.x-0.5)*aspect,uv.y); float2 center=float2(0,ballY); float2 q=p-center;\n"
+        "  float lamp=smoothstep(0.0,0.30,deployment); float radius=0.035;\n"
+        "  float ballY=mix(-radius*1.8,u.timing.w,fall);\n"
+        "  float rotation=t*0.30+u.timing.z;\n"
+        "  float2 p=float2((uv.x-0.5)*aspect,uv.y); float2 center=float2(0,ballY)+u.motion.xy; float2 q=p-center;\n"
         "  bool ballPass=u.canvas.w>0.5;\n"
-        "  float light=ballPass ? 0.0 : beamField(q,rotation,radius)*lamp;\n"
+        "  float3 light=ballPass ? float3(0) : beamField(q,rotation,radius,u.motion.z,u.motion.w,u)*lamp*smoothstep(0.70,0.95,drop);\n"
         // Output is premultiplied: white light replaces part of the dimming,
         // avoiding the muddy grey produced by multiplying bright patches twice.
         "  float dimAlpha=ballPass ? 0.0 : 0.78*lamp;\n"
         "  float3 color=float3(light);\n"
-        "  float alpha=dimAlpha+light*(1.0-dimAlpha);\n"
+        "  float alpha=dimAlpha+max(light.r,max(light.g,light.b))*(1.0-dimAlpha);\n"
         "  float pixel=u.canvas.z;\n"
         "  if (ballPass) {\n"
-        "    float stringEnd=ballY-radius*0.95;\n"
-        "    float stringMask=(1.0-smoothstep(pixel*0.55,pixel*1.6,abs(p.x))) * step(0.0,uv.y) * step(uv.y,stringEnd);\n"
-        "    color=mix(color,float3(0.58),stringMask*0.85); alpha=mix(alpha,1.0,stringMask*0.85);\n"
+        "    float2 stringEnd=center-normalize(center)*radius*.95;\n"
+        "    float along=clamp(dot(p,stringEnd)/max(dot(stringEnd,stringEnd),.000001),0.0,1.0); float stringMask=1.0-smoothstep(pixel*.55,pixel*1.6,length(p-stringEnd*along));\n"
+        "    color=mix(color,float3(0.38),stringMask*0.55); alpha=mix(alpha,1.0,stringMask*0.55);\n"
         "    float rr=dot(q,q)/(radius*radius);\n"
         "    if (rr < 1.0) {\n"
         "    float2 nxy=q/radius; float z=sqrt(max(0.0,1.0-rr));\n"
@@ -266,6 +389,9 @@ static NSString *DiscoShaderSource(void) {
         self.windows = [NSMutableArray new];
         self.renderers = [NSMutableArray new];
         _animation = [DiscoAnimation new];
+        _nowPlaying = [DiscoNowPlaying new];
+        __weak DiscoAnimation *weakAnimation = _animation;
+        _nowPlaying.paletteChanged = ^(NSArray<NSColor *> *colors) { [weakAnimation setAlbumColors:colors]; };
         _device = MTLCreateSystemDefaultDevice();
         if (_device) {
             NSError *error = nil;
@@ -292,7 +418,10 @@ static NSString *DiscoShaderSource(void) {
 }
 
 - (void)rebuildOverlays {
-    for (NSWindow *window in self.windows) [window orderOut:nil];
+    for (NSWindow *window in self.windows) {
+        if ([window.contentView isKindOfClass:DiscoBallView.class]) [(DiscoBallView *)window.contentView cancelPull];
+        [window orderOut:nil];
+    }
     [self.windows removeAllObjects];
     [self.renderers removeAllObjects];
     if (!_pipeline || !_commandQueue) return;
@@ -319,8 +448,7 @@ static NSString *DiscoShaderSource(void) {
                 NSWindowCollectionBehaviorIgnoresCycle;
             NSRect viewFrame = NSMakeRect(0, 0, NSWidth(frame), NSHeight(frame));
             MTKView *view = ballPass
-                ? [[DiscoBallView alloc] initWithFrame:viewFrame device:_device animation:_animation
-                    screenHeight:NSHeight(screen.frame)]
+                ? [[DiscoBallView alloc] initWithFrame:viewFrame device:_device]
                 : [[MTKView alloc] initWithFrame:viewFrame device:_device];
             view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
             view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
@@ -336,6 +464,8 @@ static NSString *DiscoShaderSource(void) {
                 commandQueue:_commandQueue animation:_animation screen:screen ballPass:ballPass];
             view.delegate = renderer;
             if (ballPass) {
+                ((DiscoBallView *)view).animation = _animation;
+                ((DiscoBallView *)view).discoScreen = screen;
                 __weak DiscoOverlayController *weakSelf = self;
                 ((DiscoBallView *)view).cancelHandler = ^{ [weakSelf cancel]; };
             }
@@ -351,7 +481,9 @@ static NSString *DiscoShaderSource(void) {
     _visible = YES;
     _transitionGeneration++;
     if (!self.windows.count) [self rebuildOverlays];
-    [_animation setActive:YES];
+    double remaining = [_animation setActive:YES];
+    double dimmingDelay = fmax(0, DiscoDimmingDuration-(DiscoDuration-remaining));
+    if (self.activeChanged) self.activeChanged(YES);
     if (!_escapeMonitor) {
         __weak DiscoOverlayController *weakSelf = self;
         _escapeMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
@@ -368,11 +500,19 @@ static NSString *DiscoShaderSource(void) {
         [view draw];
         [panel orderFrontRegardless];
     }
+    NSUInteger generation = _transitionGeneration;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(dimmingDelay*NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (self->_visible && generation == self->_transitionGeneration) [self->_nowPlaying show];
+    });
 }
 
 - (void)hide {
     if (!_visible) return;
     _visible = NO;
+    if (self.activeChanged) self.activeChanged(NO);
+    [_nowPlaying hide];
+    for (NSWindow *window in self.windows)
+        if ([window.contentView isKindOfClass:DiscoBallView.class]) [(DiscoBallView *)window.contentView cancelPull];
     if (_escapeMonitor) {
         [NSEvent removeMonitor:_escapeMonitor];
         _escapeMonitor = nil;
@@ -395,6 +535,7 @@ static NSString *DiscoShaderSource(void) {
 
 - (void)screensChanged:(NSNotification *)notification {
     BOOL wasVisible = _visible;
+    [_nowPlaying hide];
     _transitionGeneration++;
     [self rebuildOverlays];
     _visible = NO;
@@ -405,6 +546,9 @@ static NSString *DiscoShaderSource(void) {
 - (void)dealloc {
     if (_escapeMonitor) [NSEvent removeMonitor:_escapeMonitor];
     [NSNotificationCenter.defaultCenter removeObserver:self];
-    for (NSWindow *window in self.windows) [window orderOut:nil];
+    for (NSWindow *window in self.windows) {
+        if ([window.contentView isKindOfClass:DiscoBallView.class]) [(DiscoBallView *)window.contentView cancelPull];
+        [window orderOut:nil];
+    }
 }
 @end

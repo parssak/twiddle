@@ -1,39 +1,44 @@
 #pragma once
+#include "NativeEffects.h"
 #include <math.h>
 #include <string.h>
 
-typedef struct { double b0, b1, b2, a1, a2, z1[2], z2[2]; } Biquad;
-typedef struct { Biquad low, high; double position, sampleRate; unsigned tick; } Filter;
+// The main knob keeps its original cutoff mapping and 25 ms movement smoothing.
+typedef struct {
+    NativeEffect low, high;
+    double position, sampleRate;
+} Filter;
 
-static void coefficients(Biquad *b, double hz, double rate, int high) {
-    double w = 2 * M_PI * fmin(hz, rate * .45) / rate;
-    double c = cos(w), alpha = sin(w) / sqrt(2.0), a0 = 1 + alpha;
-    b->b0 = (high ? 1 + c : 1 - c) / (2 * a0);
-    b->b1 = (high ? -(1 + c) : 1 - c) / a0;
-    b->b2 = b->b0;
-    b->a1 = -2 * c / a0;
-    b->a2 = (1 - alpha) / a0;
+static void filterDestroy(Filter *f) {
+    nativeEffectDestroy(&f->low); nativeEffectDestroy(&f->high);
+    memset(f, 0, sizeof(*f));
 }
-
-static double biquad(Biquad *b, double x, unsigned ch) {
-    double y = b->b0 * x + b->z1[ch];
-    b->z1[ch] = b->b1 * x - b->a1 * y + b->z2[ch];
-    b->z2[ch] = b->b2 * x - b->a2 * y;
-    return y;
+static OSStatus filterInit(Filter *f, double rate) {
+    filterDestroy(f);
+    f->sampleRate = rate;
+    OSStatus status = nativeEffectInit(&f->low, rate, NativeEffectLowPass);
+    if (!status) status = nativeEffectInit(&f->high, rate, NativeEffectHighPass);
+    if (status) { filterDestroy(f); return status; }
+    f->low.cutoffStart = 20000; f->low.cutoffEnd = 115;
+    f->high.cutoffStart = 20; f->high.cutoffEnd = 10000;
+    return noErr;
 }
-
-static void filterFrame(Filter *f, float target, const float in[2], float out[2]) {
-    if ((f->tick++ & 15) == 0) {
-        f->position += (target - f->position) * (1 - exp(-16 / (.025 * f->sampleRate)));
+static OSStatus filterProcess(Filter *f, float target, AudioBufferList *audio, unsigned frames) {
+    target = isfinite(target) ? fminf(1, fmaxf(-1, target)) : 0;
+    // Small chunks keep cutoff movement smooth regardless of the device buffer size.
+    for (unsigned base = 0; base < frames; base += 64) {
+        unsigned count = MIN(64, frames - base);
+        f->position += (target - f->position) * (1 - exp(-(double)count / (.025 * f->sampleRate)));
         if (fabs(target - f->position) < 1e-7) f->position = target;
-        double lowAmount = fmax(0, -f->position), highAmount = fmax(0, f->position);
-        coefficients(&f->low, 20000 * pow(115.0 / 20000, lowAmount), f->sampleRate, 0);
-        coefficients(&f->high, 20 * pow(10000.0 / 20, highAmount), f->sampleRate, 1);
+        struct { UInt32 count; AudioBuffer buffers[2]; } slice = {audio->mNumberBuffers, {0}};
+        for (unsigned b = 0; b < audio->mNumberBuffers; b++) {
+            unsigned channels = audio->mBuffers[b].mNumberChannels;
+            slice.buffers[b] = (AudioBuffer){channels, count * channels * sizeof(float),
+                (float *)audio->mBuffers[b].mData + base * channels};
+        }
+        OSStatus status = nativeEffectProcess(&f->low, (AudioBufferList *)&slice, count, fmax(0, -f->position));
+        if (!status) status = nativeEffectProcess(&f->high, (AudioBufferList *)&slice, count, fmax(0, f->position));
+        if (status) return status;
     }
-    double wet = fmin(1, fabs(f->position) / .03);
-    for (unsigned ch = 0; ch < 2; ch++) {
-        double lo = biquad(&f->low, in[ch], ch), hi = biquad(&f->high, in[ch], ch);
-        double filtered = f->position < 0 ? lo : hi;
-        out[ch] = (float)(in[ch] + wet * (filtered - in[ch]));
-    }
+    return noErr;
 }

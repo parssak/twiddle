@@ -1,5 +1,6 @@
 #import "AppDelegate.h"
 #import "AudioEngine.h"
+#import "EffectsController.h"
 #import "TwiddleControl.h"
 
 int selfTest(void);
@@ -21,6 +22,13 @@ int main(int argc, const char *argv[]) {
             return ok ? 0 : 1;
         }
         NSApplication *app = NSApplication.sharedApplication;
+        if (argc > 1 && !strcmp(argv[1], "--effects-preview")) {
+            EffectsController *preview = [[EffectsController alloc] initWithEngine:[AudioEngine new]];
+            [app setActivationPolicy:NSApplicationActivationPolicyAccessory];
+            [preview show];
+            [app run];
+            return 0;
+        }
         AppDelegate *delegate = [AppDelegate new];
         app.delegate = delegate;
         [app setActivationPolicy:NSApplicationActivationPolicyAccessory];

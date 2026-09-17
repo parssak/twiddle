@@ -87,7 +87,7 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
 + (NSColor *)highColor { return [self colorForKey:@"highColor" fallback:self.defaultFilterColor]; }
 - (double)doubleValue { return _value; }
 - (void)setDoubleValue:(double)value {
-    value = isfinite(value) ? fmax(-1, fmin(1, value)) : 0;
+    value = isfinite(value) ? fmax(self.unipolar ? 0 : -1, fmin(1, value)) : 0;
     if (_value == value) return;
     _value = value;
     self.needsDisplay = YES;
@@ -107,7 +107,8 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
     BOOL snappedToNeutral = fabs(previous) > .00001 && fabs(self.doubleValue) <= .00001;
     // The arc has 20 intervals. Pulse on arrival/crossing, not again when
     // leaving the same mark or continuing to push against an endpoint.
-    double from = previous * 10, to = self.doubleValue * 10;
+    double intervals = self.unipolar ? 20 : 10;
+    double from = previous * intervals, to = self.doubleValue * intervals;
     BOOL crossed = to > from ? floor(to + 1e-9) > floor(from + 1e-9) :
         ceil(to - 1e-9) < ceil(from - 1e-9);
     if (self.hapticsEnabled && (snappedToNeutral || crossed)) {
@@ -138,7 +139,7 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
         if (event.type == NSEventTypeLeftMouseUp) break;
         NSPoint point = event.locationInWindow;
         double sensitivity = (event.modifierFlags & NSEventModifierFlagShift) ? .001 : .008;
-        value = fmax(-1, fmin(1, value + (point.y - previous.y) * sensitivity));
+        value = fmax(self.unipolar ? 0 : -1, fmin(1, value + (point.y - previous.y) * sensitivity * (self.unipolar ? .5 : 1)));
         previous = point;
         [self changeValue:value];
     }
@@ -160,7 +161,7 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
 - (BOOL)isAccessibilityElement { return YES; }
 - (NSString *)accessibilityRole { return NSAccessibilitySliderRole; }
 - (id)accessibilityValue { return @(self.doubleValue); }
-- (id)accessibilityMinValue { return @(-1); }
+- (id)accessibilityMinValue { return @(self.unipolar ? 0 : -1); }
 - (id)accessibilityMaxValue { return @1; }
 - (void)setAccessibilityValue:(id)value { [self changeValue:[value doubleValue]]; }
 - (BOOL)accessibilityPerformIncrement { [self changeValue:self.doubleValue + .025]; return self.enabled; }
@@ -173,6 +174,9 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
     [transform scaleBy:scale];
     [transform concat];
     NSPoint center = NSZeroPoint;
+    double renderedValue = self.unipolar ? 2 * _value - 1 : _value;
+    double arcStart = self.unipolar ? 225 : 90;
+    BOOL clockwise = self.unipolar || _value > 0;
     NSColor *filterAccent = _value > 0 ? FilterKnob.highColor : FilterKnob.lowColor;
     CGFloat magnitude = fabs(_value);
     // Each half of the knob spans 135 degrees. Keep the first 20 degrees
@@ -192,14 +196,15 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
     for (int i = 0; i <= 20; i++) {
         double angle = 225 - i * 270.0 / 20;
         double tickValue = (i - 10) / 10.0;
-        BOOL swept = fabs(_value) > .00001 &&
+        BOOL swept = self.unipolar ? (_value > .00001 && i / 20.0 <= _value + 1e-9) : fabs(_value) > .00001 &&
             ((_value > 0 && tickValue >= 0 && tickValue <= _value + 1e-9) ||
              (_value < 0 && tickValue <= 0 && tickValue >= _value - 1e-9));
+        BOOL origin = i == (self.unipolar ? 0 : 10);
         NSBezierPath *tick = [NSBezierPath bezierPath];
         [tick moveToPoint:radial(center, 94, angle)];
-        [tick lineToPoint:radial(center, i == 10 ? 102 : 98, angle)];
-        tick.lineWidth = i == 10 ? 2 : 1;
-        NSColor *tickColor = swept ? accent : (i == 10 ? NSColor.labelColor : NSColor.secondaryLabelColor);
+        [tick lineToPoint:radial(center, origin ? 102 : 98, angle)];
+        tick.lineWidth = origin ? 2 : 1;
+        NSColor *tickColor = swept ? accent : (origin ? NSColor.labelColor : NSColor.secondaryLabelColor);
         [tickColor setStroke];
         [tick stroke];
     }
@@ -211,7 +216,7 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
     [track stroke];
     if (fabs(_value) > .00001) {
         NSBezierPath *arc = [NSBezierPath bezierPath];
-        [arc appendBezierPathWithArcWithCenter:center radius:85 startAngle:90 endAngle:90 - _value * 135 clockwise:_value > 0];
+        [arc appendBezierPathWithArcWithCenter:center radius:85 startAngle:arcStart endAngle:90 - renderedValue * 135 clockwise:clockwise];
         arc.lineWidth = 4 + .75 * endpointIntensity;
         arc.lineCapStyle = NSLineCapStyleRound;
         [NSGraphicsContext saveGraphicsState];
@@ -230,10 +235,10 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
         NSColor *arcRGB = [accent colorUsingColorSpace:NSColorSpace.sRGBColorSpace] ?: accent;
         CGFloat arcHue = 0, arcSaturation = 0, arcBrightness = 0, arcAlpha = 1;
         [arcRGB getHue:&arcHue saturation:&arcSaturation brightness:&arcBrightness alpha:&arcAlpha];
-        CGFloat span = magnitude * 135;
+        CGFloat span = magnitude * (self.unipolar ? 270 : 135);
         const CGFloat patchDegrees = 2.0;
         NSInteger patchCount = MAX(1, (NSInteger)ceil(span / patchDegrees));
-        CGFloat direction = _value > 0 ? -1 : 1;
+        CGFloat direction = clockwise ? -1 : 1;
         NSInteger sideSeed = _value > 0 ? 97 : 193;
         for (NSInteger patch = 0; patch < patchCount; patch++) {
             CGFloat start = patch * patchDegrees;
@@ -254,8 +259,8 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
             scattered = [scattered blendedColorWithFraction:glint ofColor:NSColor.whiteColor];
             NSBezierPath *patchPath = [NSBezierPath bezierPath];
             [patchPath appendBezierPathWithArcWithCenter:center radius:85
-                startAngle:90 + direction * start endAngle:90 + direction * MIN(end, span)
-                clockwise:_value > 0];
+                startAngle:arcStart + direction * start endAngle:arcStart + direction * MIN(end, span)
+                clockwise:clockwise];
             patchPath.lineWidth = arc.lineWidth + luminanceNoise * .06 * colorAmount;
             patchPath.lineCapStyle = NSLineCapStyleButt;
             [scattered setStroke];
@@ -264,7 +269,7 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
     }
     NSRect body = NSMakeRect(center.x - 72, center.y - 72, 144, 144);
     if (!_renderer) _renderer = [KnobRenderer new];
-    [_renderer drawValue:_value lidAngle:_displayedLidAngle ?: 90];
+    [_renderer drawValue:renderedValue lidAngle:_displayedLidAngle ?: 90];
     if (self.window.firstResponder == self && self.enabled) {
         NSBezierPath *focus = [NSBezierPath bezierPathWithOvalInRect:NSInsetRect(body, -4, -4)];
         focus.lineWidth = 1;

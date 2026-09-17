@@ -1,5 +1,6 @@
 #import "AppDelegate.h"
 #import "AudioEngine.h"
+#import "EffectsController.h"
 #import "HoldShortcutMonitor.h"
 #import "GlobalFilterHotkeys.h"
 #import "FilterKnob.h"
@@ -32,6 +33,7 @@ static const NSTimeInterval GlobalHotkeyPopoverDuration = 1.4;
     NSUInteger _footerTransition;
 }
 @property AudioEngine *engine;
+@property EffectsController *effectsController;
 @property HoldShortcutMonitor *shortcutMonitor;
 @property GlobalFilterHotkeys *globalFilterHotkeys;
 @property NSStatusItem *statusItem;
@@ -249,6 +251,10 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     self.settingsButton.toolTip = @"Settings";
     self.settingsButton.contentTintColor = NSColor.secondaryLabelColor;
     [content addSubview:self.settingsButton];
+    NSButton *effects = [NSButton buttonWithTitle:@"FX" target:self action:@selector(showEffects:)];
+    effects.frame = NSMakeRect(192, 179, 34, 24);
+    effects.bordered = NO; effects.toolTip = @"Reverb, pitch, phaser, and tape stop";
+    [content addSubview:effects];
     NSViewController *controller = [NSViewController new];
     controller.view = content;
     self.popover = [NSPopover new];
@@ -256,6 +262,11 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     self.popover.contentViewController = controller;
     self.popover.contentSize = bounds.size;
     self.popover.behavior = NSPopoverBehaviorTransient;
+}
+- (void)showEffects:(id)sender {
+    [self.popover performClose:nil];
+    if (!self.effectsController) self.effectsController = [[EffectsController alloc] initWithEngine:self.engine];
+    [self.effectsController show];
 }
 - (void)statusClicked:(id)sender {
     if (NSApp.currentEvent.type == NSEventTypeRightMouseUp) { [self showMenu]; return; }

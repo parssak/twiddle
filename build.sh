@@ -9,7 +9,7 @@ candidate="$staging/Twiddle.app"
 mkdir -p "$candidate/Contents/MacOS"
 sources=(Sources/App/*.m Sources/UI/*.m Sources/Audio/*.m Tests/*.m)
 clang -fobjc-arc -O2 -Wall -Wextra -Wno-unused-parameter -mmacosx-version-min=26.0 \
-    -framework Cocoa -framework Carbon -framework CoreAudio -framework CoreGraphics -framework CoreImage -framework IOKit -framework Metal -framework MetalKit -framework QuartzCore -framework ServiceManagement \
+    -framework Cocoa -framework Carbon -framework AudioToolbox -framework CoreAudio -framework CoreGraphics -framework CoreImage -framework IOKit -framework Metal -framework MetalKit -framework QuartzCore -framework ServiceManagement \
     -I Sources/App -I Sources/UI -I Sources/Audio "${sources[@]}" \
     -o "$candidate/Contents/MacOS/Twiddle"
 cp Info.plist "$candidate/Contents/Info.plist"

@@ -1,8 +1,11 @@
 #import <Foundation/Foundation.h>
+#import "NativeEffects.h"
 
 // Main-thread API. Only the internal audio callback touches DSP state.
 @interface AudioEngine : NSObject
 @property float target;
+@property BOOL tapeStop;
+@property float reverb, pitch, phaser;
 @property (readonly) float peak;
 @property (readonly) unsigned callbacks;
 @property (readonly) BOOL running;

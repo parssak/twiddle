@@ -49,6 +49,18 @@ static int controlTests(void) {
     CHECK(!audioProcessMatchesBundle(nil, @"company.thebrowser.Browser"));
     CHECK(!audioProcessMatchesBundle(@"company.thebrowser.browser.helper", @""));
     CHECK([[FilterKnob labelForValue:[FilterKnob defaultPresetValue]] isEqualToString:@"Low-pass · 1100 Hz"]);
+    FilterKnob *normalKnob = [[FilterKnob alloc] initWithFrame:NSZeroRect];
+    normalKnob.doubleValue = -1;
+    CHECK(normalKnob.doubleValue == -1 && [normalKnob.accessibilityMinValue doubleValue] == -1);
+    FilterKnob *amountKnob = [[FilterKnob alloc] initWithFrame:NSZeroRect];
+    amountKnob.unipolar = YES; amountKnob.doubleValue = -1;
+    CHECK(amountKnob.doubleValue == 0 && [amountKnob.accessibilityMinValue doubleValue] == 0);
+    amountKnob.doubleValue = .375;
+    CHECK(amountKnob.doubleValue == .375);
+    amountKnob.doubleValue = 2;
+    CHECK(amountKnob.doubleValue == 1);
+    amountKnob.doubleValue = NAN;
+    CHECK(amountKnob.doubleValue == 0);
     FilterControl c = {.preset = -.8};
     controlSetBaseline(&c, .3, 0);
     controlSetHeld(&c, true, 1);
@@ -260,44 +272,64 @@ static int controlTests(void) {
 int discoMotionTests(void);
 int cliTests(void);
 
+int nativeEffectTests(void);
+int performanceEffectsTests(void);
 int selfTest(void) {
+    if (performanceEffectsTests()) return 1;
+    if (nativeEffectTests()) return 1;
     if (cliTests()) return 1;
     if (discoMotionTests()) return 1;
     if (controlTests()) return 1;
     const float positions[] = {0, -1, 1};
     const double frequencies[] = {440, 10000, 100};
-    const double rates[] = {44100, 48000};
-    for (unsigned rate = 0; rate < 2; rate++) {
-    for (unsigned test = 0; test < 3; test++) {
-        Filter f = {.sampleRate = rates[rate]};
-        double energy = 0, reference = 0;
-        for (unsigned i = 0; i < 96000; i++) {
-            float x = .25 * sin(2 * M_PI * frequencies[test] * i / rates[rate]);
-            float in[2] = {x, x}, out[2];
-            filterFrame(&f, positions[test], in, out);
-            if (!isfinite(out[0]) || out[0] != out[1]) return 1;
-            if (test == 0 && out[0] != x) return 2;
-            if (i > 48000) { energy += out[0] * out[0]; reference += x * x; }
+    const double rates[] = {44100, 48000, 96000};
+    for (unsigned rate = 0; rate < 3; rate++) {
+        for (unsigned test = 0; test < 3; test++) {
+            Filter f = {0};
+            CHECK(filterInit(&f, rates[rate]) == noErr);
+            double energy = 0, reference = 0;
+            float samples[514], dry[257];
+            AudioBufferList audio = {1, {{2, sizeof(samples), samples}}};
+            for (unsigned block = 0; block < rates[rate] * 2 / 257; block++) {
+                for (unsigned i = 0; i < 257; i++) {
+                    dry[i] = .25 * sin(2 * M_PI * frequencies[test] * (block * 257 + i) / rates[rate]);
+                    samples[2*i] = samples[2*i+1] = dry[i];
+                }
+                CHECK(filterProcess(&f, positions[test], &audio, 257) == noErr);
+                for (unsigned i = 0; i < 257; i++) {
+                    CHECK(isfinite(samples[2*i]) && samples[2*i] == samples[2*i+1]);
+                    if (test == 0) CHECK(samples[2*i] == dry[i]);
+                    if (block * 257 > rates[rate]) { energy += samples[2*i] * samples[2*i]; reference += dry[i] * dry[i]; }
+                }
+            }
+            double db = 10 * log10(energy / reference);
+            printf("Apple main filter %.0f Hz — %s: %.1f dB\n", rates[rate], test == 0 ? "Bypass" : test == 1 ? "Low-pass at 10 kHz" : "High-pass at 100 Hz", db);
+            CHECK(!test || db < -40);
+            filterDestroy(&f);
         }
-        double db = 10 * log10(energy / reference);
-        printf("%.0f Hz — %s: %.1f dB\n", rates[rate], test == 0 ? "Bypass" : test == 1 ? "Low-pass at 10 kHz" : "High-pass at 100 Hz", db);
-        if (test && db > -40) return 3;
-    }
-    }
-    // Feed a reset through the actual DSP and require a finite output throughout,
-    // followed by sample-exact bypass once the transition has settled.
-    for (unsigned rate = 0; rate < 2; rate++) {
+        // Exercise both directions and reset through the real controls, on a planar route.
         FilterControl c = {0};
-        Filter f = {.sampleRate = rates[rate]};
+        Filter f = {0};
+        CHECK(filterInit(&f, rates[rate]) == noErr);
+        float left[257], right[257], dry[257];
+        struct { UInt32 count; AudioBuffer buffers[2]; } planar = {2, {{1, sizeof(left), left}, {1, sizeof(right), right}}};
         controlSetBaseline(&c, -.8, 0);
-        for (unsigned i = 0; i < 2 * rates[rate]; i++) {
-            double now = i / rates[rate];
-            if (i == (unsigned)rates[rate]) controlReset(&c, now);
-            float x = .2 * sin(2 * M_PI * 1000 * now), in[2] = {x, x}, out[2];
-            filterFrame(&f, controlValue(&c, now), in, out);
-            CHECK(isfinite(out[0]) && fabsf(out[0]) < 1);
-            if (now > 1.8) CHECK(out[0] == x);
+        unsigned phase = 0;
+        for (unsigned block = 0; block < rates[rate] * 3 / 257; block++) {
+            double now = block * 257 / rates[rate];
+            if (now >= 2 && phase < 2) { controlReset(&c, now); phase = 2; }
+            else if (now >= 1 && phase < 1) { controlSetBaseline(&c, .8, now); phase = 1; }
+            for (unsigned i = 0; i < 257; i++) {
+                dry[i] = .2 * sin(2 * M_PI * 1000 * (block * 257 + i) / rates[rate]);
+                left[i] = dry[i]; right[i] = -dry[i];
+            }
+            CHECK(filterProcess(&f, controlValue(&c, now), (AudioBufferList *)&planar, 257) == noErr);
+            for (unsigned i = 0; i < 257; i++) {
+                CHECK(isfinite(left[i]) && fabsf(left[i]) < 1 && isfinite(right[i]) && fabsf(right[i]) < 1);
+                if (now > 2.8) CHECK(left[i] == dry[i] && right[i] == -dry[i]);
+            }
         }
+        filterDestroy(&f);
     }
     puts("Filter checks passed.");
     return 0;

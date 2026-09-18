@@ -6,7 +6,7 @@ A little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or 
 
 **[Download Twiddle](https://github.com/parssak/twiddle/releases/latest)** · Apple Silicon · macOS 26+
 
-v0.3 adds app-triggered filtering, refreshed Settings, interactive disco mode with album colours, a CLI, and shortcut permission controls.
+v0.4 adds a live effects panel with reverb, pitch, phaser, and a hold-to-use Tape Stop.
 
 <img src="docs/screenshot.png" width="520" alt="Twiddle in the macOS menu bar, filtering Spotify with a brushed-metal knob">
 
@@ -22,6 +22,7 @@ Allow system audio recording when macOS asks. Twiddle also asks for access to Sp
 - **Double-click:** smoothly reset to center.
 - **⌥F10 / ⌥F11 / ⌥F12:** toggle between bypass and your preset, step down, or step up from anywhere. The menu-bar popover briefly shows each change.
 - **Click the source icon:** choose which apps get filtered. Set trigger apps in Auto-apply settings.
+- **Click FX:** open the live reverb, pitch, phaser, and Tape Stop controls.
 - **Click the cog:** open Settings. Set the preset with its own knob, then use the hold shortcut to activate it.
 - **Right-click the menu bar icon:** open Settings, manage the hold shortcut, or quit.
 

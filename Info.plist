@@ -5,8 +5,8 @@
     <key>CFBundleIdentifier</key><string>com.parssa.lowpasser.poc</string>
     <key>CFBundleName</key><string>Twiddle</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleVersion</key><string>3</string>
-    <key>CFBundleShortVersionString</key><string>0.3</string>
+    <key>CFBundleVersion</key><string>4</string>
+    <key>CFBundleShortVersionString</key><string>0.4</string>
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>LSUIElement</key><true/>

@@ -17,4 +17,5 @@
 - (void)updateShortcutAccess:(BOOL)granted ready:(BOOL)ready error:(NSString *)error;
 - (void)setDiscoEnabled:(BOOL)enabled;
 - (void)showApps:(id)sender;
+- (void)checkForUpdates:(id)sender;
 @end

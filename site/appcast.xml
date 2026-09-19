@@ -1,0 +1,29 @@
+<?xml version="1.0" standalone="yes"?>
+<!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+-->
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Twiddle</title>
+        <item>
+            <title>0.5</title>
+            <pubDate>Fri, 18 Sep 2026 17:53:37 -0400</pubDate>
+            <link>https://twiddle.fun</link>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>0.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Twiddle 0.5
+
+- Downloads, verifies, installs, and relaunches signed updates inside the app.
+- Checks the signed Twiddle appcast automatically and keeps the wordmark as the manual update control.
+- Pins and verifies Sparkle 2.10.0 as part of the existing shell build.
+]]></description>
+            <enclosure url="https://github.com/parssak/twiddle/releases/download/v0.5/Twiddle-0.5-arm64.dmg" length="6294523" type="application/octet-stream" sparkle:edSignature="L9In026doif+h6OZzVUyo/1RORTLtYA7vBreG11SFr9qp5LazLJlFq0Y+QlZe/0jnA+G4Nuaf2qAWVi2MD8wBw=="/>
+        </item>
+    </channel>
+</rss>
+<!-- sparkle-signatures:
+edSignature: AFSbT1QZP+VfKYA81guBR0AUGMlxXBFKhI8D38tRqnbLp66q9IX+OP7bqwvZ2xvQuqRyCS3x2VMEdr42ScLLCA==
+length: 1498
+-->

@@ -16,7 +16,7 @@ bash install.sh
 open /Applications/Twiddle.app
 ```
 
-Builds run DSP checks at 44.1 and 48 kHz, plus hold/release, reset interruption, and listener cleanup checks. These do not validate physical Fn delivery, device compatibility, or end-to-end audio latency.
+The first build downloads the pinned Sparkle 2.10.0 binary distribution into the ignored `build/dependencies/` cache and verifies its published SHA-256 before use. Builds run DSP checks at 44.1, 48, and 96 kHz, plus hold/release, reset interruption, and listener cleanup checks. These do not validate physical Fn delivery, device compatibility, or end-to-end audio latency.
 
 To inspect the current route without starting capture:
 
@@ -51,15 +51,18 @@ xcrun notarytool store-credentials twiddle-notary \
 Then build, sign, and notarize:
 
 ```sh
-TWIDDLE_SIGN_IDENTITY='Developer ID Application: Your Name (TEAMID)' \
-TWIDDLE_NOTARY_PROFILE='twiddle-notary' bash package.sh --release
+bash scripts/release.sh
 ```
 
-The script enables hardened runtime, adds secure timestamps, submits the DMG to Apple, staples its ticket, and checks Gatekeeper. Output is `build/Twiddle-<version>-<architecture>.dmg`, with a SHA-256 checksum and notarization result alongside it. A failed release preserves its candidate DMG for inspection or finishing a delayed submission. Builds target the host architecture.
+The wrapper unlocks the dedicated local signing keychain without exposing its password, then enables hardened runtime, signs Sparkle from the inside out, submits the DMG to Apple, staples its ticket, and checks Gatekeeper. It uses the EdDSA key stored under the `com.parssa.twiddle` Keychain account, or its mode-600 release backup under Application Support for headless signing, to generate the signed `site/appcast.xml`. Output is `build/Twiddle-<version>-<architecture>.dmg`, with a SHA-256 checksum and notarization result alongside it. Builds target the host architecture.
+
+Submission state is written before waiting on Apple. If the agent or terminal disconnects while Apple is processing the build, `bash scripts/release.sh --resume` continues the same submission instead of uploading and notarizing the DMG again. Override the wrapper defaults with the existing `TWIDDLE_SIGN_*` and `TWIDDLE_NOTARY_PROFILE` environment variables when moving the release process to another Mac.
+
+Publish the GitHub release before deploying `site/`, because the generated appcast points at the versioned GitHub DMG. Private signing material stays local; only `SUPublicEDKey` belongs in `Info.plist`.
 
 ## Source layout
 
-- `Sources/App/`: application lifecycle, global shortcuts, Spotify integration, and release checking.
+- `Sources/App/`: application lifecycle, global shortcuts, Spotify integration, and Sparkle update control.
 - `Sources/UI/`: Settings, the filter knob, app grids, shortcut recorder, wordmark, marquee, and visual effects. `SettingsLayout` owns shared card/row construction and spacing constants.
 - `Sources/Audio/`: capture/playback, DSP and preset state, process discovery, and playback-level monitoring. `AudioProcessActivity` supplies both microphone activity and candidate playback processes.
 - `Tests/`: self-tests compiled into the app and run with `--self-test` during builds.

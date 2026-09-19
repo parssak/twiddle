@@ -32,6 +32,7 @@ twiddle reset          # Fade back to bypass
 twiddle disco on
 twiddle disco off
 twiddle settings
+twiddle update           # Check for updates with Sparkle
 twiddle help
 ```
 

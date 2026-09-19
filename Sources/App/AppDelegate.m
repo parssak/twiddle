@@ -514,6 +514,8 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         [self.settings setDiscoEnabled:[request[@"enabled"] boolValue]];
     } else if ([command isEqual:@"settings"]) {
         [self showSettings:nil];
+    } else if ([command isEqual:@"update"]) {
+        [self.settings checkForUpdates:nil];
     }
     [self updateControl];
     return @{@"ok":@YES, @"running":@(self.engine.running), @"value":@(controlValue(&_control, now)),

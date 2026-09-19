@@ -6,7 +6,7 @@ A little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or 
 
 **[Download Twiddle](https://github.com/parssak/twiddle/releases/latest)** · Apple Silicon · macOS 26+
 
-v0.4 adds a live effects panel with reverb, pitch, phaser, and a hold-to-use Tape Stop.
+v0.5 adds signed in-app updates while keeping the manual update check on the Settings wordmark.
 
 <img src="docs/screenshot.png" width="520" alt="Twiddle in the macOS menu bar, filtering Spotify with a brushed-metal knob">
 
@@ -36,7 +36,7 @@ The first Settings row opens macOS Menu Bar settings, where the system's “Allo
 
 **Apply when mic is active** applies the preset while **Any app** or **Wispr Flow** has an active audio input. It starts in Wispr Flow mode, enabled when Flow is installed; existing preferences are preserved. Twiddle excludes its own capture. This is experimental: virtual audio inputs and apps that keep their mic open while silent or muted can also activate it. The preset returns to your previous setting after all playback, microphone, shortcut, and disco triggers release.
 
-Click the Twiddle wordmark in Settings to check for updates when disco mode is inactive.
+Click the Twiddle wordmark in Settings to check, download, and install updates when disco mode is inactive.
 
 Light trackpad haptics mark each tick, and the knob’s metallic reflections respond to lid movement on supported Macs. Filtering stays active when the popover closes. No audio is saved or uploaded.
 
@@ -73,6 +73,7 @@ twiddle reset           # Fade back to bypass
 twiddle disco on
 twiddle disco off
 twiddle settings
+twiddle update
 twiddle help
 ```
 

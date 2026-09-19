@@ -86,9 +86,11 @@ if [[ ! -f "$signing_dir/trust-configured" ]]; then
     touch "$signing_dir/trust-configured"
 fi
 
+TWIDDLE_SIGN_KEYCHAIN="$signing_keychain" TWIDDLE_SIGN_TIMESTAMP=none \
+    bash "$(cd "$(dirname "$0")" && pwd)/sign-sparkle.sh" "$app" "$fingerprint"
 codesign --force --sign "$fingerprint" --keychain "$signing_keychain" --timestamp=none \
     --entitlements "$(cd "$(dirname "$0")/.." && pwd)/Twiddle.entitlements" \
     --identifier com.parssa.lowpasser.poc \
     --requirements "=designated => identifier \"com.parssa.lowpasser.poc\" and certificate leaf = H\"$fingerprint\"" \
     "$app"
-codesign --verify --strict --verbose=2 "$app"
+codesign --verify --deep --strict --verbose=2 "$app"

@@ -17,7 +17,7 @@ NSDictionary *twiddleParseCommand(NSArray<NSString *> *arguments) {
         return failure(@"Expected a command; run twiddle help.");
     for (id value in arguments) if (![value isKindOfClass:NSString.class]) return failure(@"Arguments must be strings.");
     NSString *command = arguments[0];
-    if ([@[@"status", @"reset", @"apply", @"settings"] containsObject:command] && arguments.count == 1)
+    if ([@[@"status", @"reset", @"apply", @"settings", @"update"] containsObject:command] && arguments.count == 1)
         return @{@"command":command};
     if ([command isEqual:@"disco"] && arguments.count == 2 && [@[@"on", @"off"] containsObject:arguments[1]])
         return @{@"command":command, @"enabled":@([arguments[1] isEqual:@"on"])};
@@ -168,7 +168,8 @@ int twiddleCLI(int argc, const char *argv[]) {
             "  apply           Apply the saved preset as the manual filter\n"
             "  reset           Bypass; suppress active automation until it releases\n"
             "  disco on|off    Enter or leave disco mode\n"
-            "  settings        Open Settings\n\n"
+            "  settings        Open Settings\n"
+            "  update          Check for updates\n\n"
             "Twiddle must be running. Responses are JSON. Exit codes: 0 success, 1 unavailable, 2 invalid arguments.");
         return 0;
     }

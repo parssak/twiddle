@@ -19,6 +19,7 @@ static NSDictionary *roundTrip(NSString *path, NSDictionary *request) {
 }
 int cliTests(void) {
     CHECK(!twiddleParseCommand(@[@"status"])[@"error"]);
+    CHECK(!twiddleParseCommand(@[@"update"])[@"error"]);
     CHECK((!twiddleParseCommand(@[@"set", @"-0.5"])[@"error"]));
     CHECK((twiddleParseCommand(@[@"set", @"NaN"])[@"error"]));
     CHECK((twiddleParseCommand(@[@"set", @"1.1"])[@"error"]));

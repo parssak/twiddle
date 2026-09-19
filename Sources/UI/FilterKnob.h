@@ -6,6 +6,5 @@
 @property (nonatomic) SEL resetAction;
 + (NSString *)labelForValue:(double)value;
 + (double)defaultPresetValue;
-+ (NSColor *)lowColor;
-+ (NSColor *)highColor;
++ (NSColor *)filterColor;
 @end

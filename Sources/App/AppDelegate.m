@@ -138,7 +138,12 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         }
         [weakSelf refreshShortcutAccess];
     };
-    self.settings.menuBarSettingsRequested = ^{ [weakSelf openMenuBarSettings:nil]; };
+    self.settings.menuBarSettingsRequested = ^{
+        AppDelegate *self = weakSelf;
+        if (!self) return;
+        if ([self statusItemHasMenuBarAnchor]) [self openMenuBarSettings:nil];
+        else [self restoreMenuBarItemShowingPopover:NO];
+    };
     self.settings.presetChanged = ^(double value) {
         AppDelegate *self = weakSelf;
         if (!self) return;
@@ -146,7 +151,6 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         [defaults setDouble:self->_control.preset forKey:@"fnPreset"];
         [self updateControl];
     };
-    self.settings.colorsChanged = ^{ weakSelf.knob.needsDisplay = YES; };
     self.settings.discoChanged = ^(BOOL active) {
         weakSelf.discoActive = active;
         [weakSelf updateAutomaticTriggers];
@@ -280,12 +284,27 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 }
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)visible {
     if (![self statusItemHasMenuBarAnchor]) {
-        [self openMenuBarSettings:nil];
+        [self restoreMenuBarItemShowingPopover:YES];
         return YES;
     }
     if (!self.popover.shown) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(.15 * NSEC_PER_SEC)),
         dispatch_get_main_queue(), ^{ [self statusClicked:nil]; });
     return YES;
+}
+- (void)restoreMenuBarItemShowingPopover:(BOOL)showPopover {
+    [self installStatusItem];
+    __weak AppDelegate *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        AppDelegate *self = weakSelf;
+        if (!self) return;
+        BOOL restored = [self statusItemHasMenuBarAnchor];
+        self.settings.menuBarItemVisible = restored;
+        if (!restored) {
+            [self openMenuBarSettings:nil];
+        } else if (showPopover && !self.popover.shown) {
+            [self statusClicked:nil];
+        }
+    });
 }
 - (BOOL)statusItemHasMenuBarAnchor {
     NSWindow *window = self.statusItem.button.window;
@@ -323,6 +342,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [self refreshShortcutAccess];
     self.settings.shortcutTitle = self.shortcutTitle;
     self.settings.presetValue = _control.preset;
+    self.settings.menuBarItemVisible = [self statusItemHasMenuBarAnchor];
     if (self.popover.shown) {
         _showSettingsAfterPopoverCloses = YES;
         [self.popover performClose:nil];

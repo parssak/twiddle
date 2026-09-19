@@ -1,7 +1,5 @@
 #import <Cocoa/Cocoa.h>
 
-@interface FilterColorWell : NSColorWell
-@end
 @interface SettingsPageDocument : NSView
 @end
 @interface SettingsNavigationTable : NSTableView

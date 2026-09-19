@@ -6,6 +6,22 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Twiddle</title>
         <item>
+            <title>0.6</title>
+            <pubDate>Sat, 19 Sep 2026 12:11:19 -0400</pubDate>
+            <link>https://twiddle.fun</link>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>0.6</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Twiddle 0.6
+
+- Restores Twiddle to the menu bar when you reopen the app after dragging its icon out.
+- Shows a Restore Icon action in Settings whenever the menu-bar item is unavailable.
+- Uses the Twiddle orange for both filter directions and removes filter-color customization.
+]]></description>
+            <enclosure url="https://github.com/parssak/twiddle/releases/download/v0.6/Twiddle-0.6-arm64.dmg" length="6282362" type="application/octet-stream" sparkle:edSignature="2mHpNX74wcrDJkVvumA+RYZxjarXXlk9R6ngmT7bJlvlSPboV5xHXkS0Z2Jyx0AYaBGh/eGLi1U1Pe4u+TITAQ=="/>
+        </item>
+        <item>
             <title>0.5</title>
             <pubDate>Fri, 18 Sep 2026 17:53:37 -0400</pubDate>
             <link>https://twiddle.fun</link>
@@ -24,6 +40,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: AFSbT1QZP+VfKYA81guBR0AUGMlxXBFKhI8D38tRqnbLp66q9IX+OP7bqwvZ2xvQuqRyCS3x2VMEdr42ScLLCA==
-length: 1498
+edSignature: qDXkLq1kKlywnqscKlupdUuV0ZG75jbpHQEQl40VjIkvhfhWGWdoLhyn3neE1XRpgFkm9nrnFsFqa0Wgp5STBQ==
+length: 2577
 -->

@@ -72,19 +72,9 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
     if (value > .00001) return [NSString stringWithFormat:@"High-pass · %.0f Hz", 20 * pow(10000.0 / 20, value)];
     return @"";
 }
-+ (NSColor *)colorForKey:(NSString *)key fallback:(NSColor *)fallback {
-    NSArray *rgb = [NSUserDefaults.standardUserDefaults arrayForKey:key];
-    if (rgb.count != 3) return fallback;
-    for (id value in rgb) if (![value isKindOfClass:NSNumber.class] || !isfinite([value doubleValue])) return fallback;
-    return [NSColor colorWithSRGBRed:fmax(0, fmin(1, [rgb[0] doubleValue]))
-                             green:fmax(0, fmin(1, [rgb[1] doubleValue]))
-                              blue:fmax(0, fmin(1, [rgb[2] doubleValue])) alpha:1];
-}
-+ (NSColor *)defaultFilterColor {
++ (NSColor *)filterColor {
     return [NSColor colorWithSRGBRed:0.98245 green:0.46475 blue:0 alpha:1];
 }
-+ (NSColor *)lowColor { return [self colorForKey:@"lowColor" fallback:self.defaultFilterColor]; }
-+ (NSColor *)highColor { return [self colorForKey:@"highColor" fallback:self.defaultFilterColor]; }
 - (double)doubleValue { return _value; }
 - (void)setDoubleValue:(double)value {
     value = isfinite(value) ? fmax(self.unipolar ? 0 : -1, fmin(1, value)) : 0;
@@ -177,7 +167,7 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
     double renderedValue = self.unipolar ? 2 * _value - 1 : _value;
     double arcStart = self.unipolar ? 225 : 90;
     BOOL clockwise = self.unipolar || _value > 0;
-    NSColor *filterAccent = _value > 0 ? FilterKnob.highColor : FilterKnob.lowColor;
+    NSColor *filterAccent = FilterKnob.filterColor;
     CGFloat magnitude = fabs(_value);
     // Each half of the knob spans 135 degrees. Keep the first 20 degrees
     // visibly neutral, then steadily intensify the chosen color toward the end.

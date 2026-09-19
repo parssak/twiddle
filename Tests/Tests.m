@@ -49,6 +49,10 @@ static int controlTests(void) {
     CHECK(!audioProcessMatchesBundle(nil, @"company.thebrowser.Browser"));
     CHECK(!audioProcessMatchesBundle(@"company.thebrowser.browser.helper", @""));
     CHECK([[FilterKnob labelForValue:[FilterKnob defaultPresetValue]] isEqualToString:@"Low-pass · 1100 Hz"]);
+    NSColor *filterColor = [FilterKnob.filterColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+    CHECK(fabs(filterColor.redComponent - .98245) < 1e-5);
+    CHECK(fabs(filterColor.greenComponent - .46475) < 1e-5);
+    CHECK(filterColor.blueComponent == 0 && filterColor.alphaComponent == 1);
     FilterKnob *normalKnob = [[FilterKnob alloc] initWithFrame:NSZeroRect];
     normalKnob.doubleValue = -1;
     CHECK(normalKnob.doubleValue == -1 && [normalKnob.accessibilityMinValue doubleValue] == -1);

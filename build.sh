@@ -27,9 +27,11 @@ if [[ -n "${TWIDDLE_SIGN_IDENTITY:-}" ]]; then
         echo 'Release signing requires a Developer ID Application identity.' >&2
         exit 1
     }
-    TWIDDLE_SIGN_TIMESTAMP=secure bash scripts/sign-sparkle.sh "$candidate" "$TWIDDLE_SIGN_IDENTITY"
-    release_sign=(codesign --force --options runtime --timestamp --entitlements Twiddle.entitlements \
+    sign_timestamp=${TWIDDLE_SIGN_TIMESTAMP:-secure}
+    TWIDDLE_SIGN_TIMESTAMP="$sign_timestamp" bash scripts/sign-sparkle.sh "$candidate" "$TWIDDLE_SIGN_IDENTITY"
+    release_sign=(codesign --force --options runtime --entitlements Twiddle.entitlements \
         --sign "$TWIDDLE_SIGN_IDENTITY")
+    if [[ "$sign_timestamp" == none ]]; then release_sign+=(--timestamp=none); else release_sign+=(--timestamp); fi
     if [[ -n "${TWIDDLE_SIGN_KEYCHAIN:-}" ]]; then release_sign+=(--keychain "$TWIDDLE_SIGN_KEYCHAIN"); fi
     "${release_sign[@]}" "$candidate"
     codesign --verify --deep --strict "$candidate"

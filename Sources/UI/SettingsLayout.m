@@ -1,9 +1,5 @@
 #import "SettingsLayout.h"
 
-@implementation FilterColorWell
-- (BOOL)acceptsFirstMouse:(NSEvent *)event { return YES; }
-@end
-
 // The document has a top origin; child pages keep their existing control coordinates.
 @implementation SettingsPageDocument
 - (BOOL)isFlipped { return YES; }

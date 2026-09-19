@@ -12,7 +12,6 @@
 #import <QuartzCore/QuartzCore.h>
 
 @interface SettingsController () <NSTableViewDataSource, NSTableViewDelegate>
-@property (weak) NSColorWell *activeColorWell;
 @property NSSwitch *microphoneSwitch;
 @property NSPopUpButton *microphonePicker;
 @property FilterKnob *presetKnob;
@@ -147,16 +146,16 @@
         [pageContainer addSubview:generalPage];
         [pageContainer addSubview:automaticPage];
         self.pages = @[generalPage, automaticPage];
-        addSettingsCard(generalPage, 346, 250);
-        addSettingsCard(generalPage, 184, 146);
+        addSettingsCard(generalPage, 396, 200);
+        addSettingsCard(generalPage, 234, 146);
         addSettingsCard(automaticPage, 430, 166);
         addSettingsCard(automaticPage, 306, 112);
         addSettingsCard(automaticPage, 232, 62);
         addSettingsCard(automaticPage, 74, 146);
-        for (NSNumber *y in @[@546, @496, @446, @396]) addSettingsSeparator(generalPage, y.doubleValue);
+        for (NSNumber *y in @[@546, @496, @446]) addSettingsSeparator(generalPage, y.doubleValue);
         addSettingsSeparator(automaticPage, 362);
-        NSArray *generalTitles = @[@"Menu Bar icon", @"Open at Login", @"Trackpad Haptics", @"Filter colors", @"⌥F10–F12 shortcuts"];
-        NSArray *generalCenters = @[@571, @521, @471, @421, @371];
+        NSArray *generalTitles = @[@"Menu Bar icon", @"Open at Login", @"Trackpad Haptics", @"⌥F10–F12 shortcuts"];
+        NSArray *generalCenters = @[@571, @521, @471, @421];
         for (NSUInteger i = 0; i < generalTitles.count; i++)
             addSettingsRowTitle(generalPage, generalTitles[i], [generalCenters[i] doubleValue], 190, NSFontWeightRegular);
         NSArray *automaticTitles = @[@"Apply when mic is active", @"Microphone app", @"Hold shortcut", @"Filter to apply"];
@@ -167,7 +166,7 @@
         NSMutableArray *appLists = [NSMutableArray new];
         for (NSInteger i = 0; i < 2; i++) {
             NSView *page = i ? automaticPage : generalPage;
-            CGFloat titleY = i ? 185 : 295;
+            CGFloat titleY = i ? 185 : 345;
             NSTextField *title = [NSTextField labelWithString:i ? @"Apps that trigger Twiddle" : @"Apps to Twiddle"];
             title.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
             title.frame = NSMakeRect(SettingsContentInset, titleY, SettingsContentWidth - 70, 20);
@@ -205,7 +204,7 @@
         self.menuBarSettingsButton.accessibilityLabel = @"Open Menu Bar Settings";
         [generalPage addSubview:self.menuBarSettingsButton];
         self.shortcutAccessButton = [NSButton buttonWithTitle:@"Allow Accessibility…" target:self action:@selector(requestShortcutAccess:)];
-        self.shortcutAccessButton.frame = NSMakeRect(270, 355, 172, 32);
+        self.shortcutAccessButton.frame = NSMakeRect(270, 405, 172, 32);
         self.shortcutAccessButton.bezelStyle = NSBezelStyleRounded;
         self.shortcutAccessButton.controlSize = NSControlSizeSmall;
         [generalPage addSubview:self.shortcutAccessButton];
@@ -240,25 +239,6 @@
         self.microphonePicker.action = @selector(chooseMicrophoneApp:);
         self.microphonePicker.accessibilityLabel = @"Microphone app";
         [automaticPage addSubview:self.microphonePicker];
-        for (NSUInteger i = 0; i < 2; i++) {
-            NSTextField *label = [NSTextField labelWithString:i ? @"High" : @"Low"];
-            label.font = [NSFont systemFontOfSize:11];
-            label.textColor = NSColor.secondaryLabelColor;
-            label.frame = NSMakeRect(270 + i * 86, 413, 32, 16);
-            [generalPage addSubview:label];
-            NSColorWell *well = [[FilterColorWell alloc] initWithFrame:NSMakeRect(308 + i * 88, 409, 28, 24)];
-            well.colorWellStyle = NSColorWellStyleMinimal;
-            well.supportsAlpha = NO;
-            well.pulldownTarget = self;
-            well.pulldownAction = @selector(openColorPicker:);
-            well.color = i ? FilterKnob.highColor : FilterKnob.lowColor;
-            well.tag = i;
-            well.target = self;
-            well.action = @selector(changeColor:);
-            well.accessibilityLabel = i ? @"High-pass color" : @"Low-pass color";
-            [generalPage addSubview:well];
-        }
-        NSColorPanel.sharedColorPanel.showsAlpha = NO;
         self.recorder = [[ShortcutRecorder alloc] initWithFrame:NSZeroRect];
         __weak SettingsController *weakSelf = self;
         self.recorder.shortcutChanged = ^(NSInteger keyCode, NSEventModifierFlags modifiers, NSString *title) {
@@ -313,7 +293,7 @@
                 }
             }
         }
-        CreditView *credit = [[CreditView alloc] initWithFrame:NSMakeRect(0, 122, 490, 24)];
+        CreditView *credit = [[CreditView alloc] initWithFrame:NSMakeRect(0, 172, 490, 24)];
         credit.autoresizingMask = NSViewWidthSizable;
         [generalPage addSubview:credit];
         panel.contentViewController = splitController;
@@ -366,6 +346,11 @@
     self.presetKnob.doubleValue = _presetValue;
     self.presetReadout.stringValue = [FilterKnob labelForValue:_presetValue];
 }
+- (void)setMenuBarItemVisible:(BOOL)visible {
+    _menuBarItemVisible = visible;
+    self.menuBarSettingsButton.title = visible ? @"Open Settings…" : @"Restore Icon";
+    self.menuBarSettingsButton.accessibilityLabel = visible ? @"Open Menu Bar Settings" : @"Restore Twiddle to the Menu Bar";
+}
 - (void)changePreset:(id)sender {
     self.presetValue = self.presetKnob.doubleValue;
     if (self.presetChanged) self.presetChanged(self.presetValue);
@@ -373,28 +358,6 @@
 - (void)resetPreset:(id)sender {
     self.presetValue = [FilterKnob defaultPresetValue];
     if (self.presetChanged) self.presetChanged(self.presetValue);
-}
-- (void)openColorPicker:(NSColorWell *)sender {
-    [self cancelRecording];
-    [self.activeColorWell deactivate];
-    self.activeColorWell = sender;
-    [sender activate:YES];
-    NSColorPanel *picker = NSColorPanel.sharedColorPanel;
-    picker.title = sender.tag ? @"High-pass color" : @"Low-pass color";
-    picker.continuous = YES;
-    picker.level = self.window.level + 1;
-    [NSApp activateIgnoringOtherApps:YES];
-    [picker makeKeyAndOrderFront:nil];
-}
-- (void)changeColor:(id)sender {
-    NSColorWell *well = [sender isKindOfClass:NSColorWell.class] ? sender : self.activeColorWell;
-    NSColor *color = [[sender color] colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-    if (!well || !color) return;
-    well.color = color;
-    [NSUserDefaults.standardUserDefaults setObject:@[@(color.redComponent), @(color.greenComponent), @(color.blueComponent)]
-                                           forKey:well.tag ? @"highColor" : @"lowColor"];
-    self.presetKnob.needsDisplay = YES;
-    if (self.colorsChanged) self.colorsChanged();
 }
 - (void)toggleMicrophone:(NSSwitch *)sender {
     [self cancelRecording];
@@ -497,7 +460,5 @@
 - (void)windowWillClose:(NSNotification *)notification {
     [self cancelRecording];
     [self.discoOverlay cancel];
-    [self.activeColorWell deactivate];
-    [NSColorPanel.sharedColorPanel orderOut:nil];
 }
 @end

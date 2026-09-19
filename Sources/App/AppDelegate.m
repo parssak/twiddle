@@ -33,6 +33,7 @@ static const NSPoint EffectKnobPositions[] = { {16, 36}, {136, 36} };
     NSInteger _statusAngle;
     BOOL _suspended;
     BOOL _showSettingsAfterPopoverCloses;
+    BOOL _closingFromStatusItem;
     NSTimeInterval _filterReadoutUntil;
     NSUInteger _footerTransition;
     CGFloat _effectsProgress;
@@ -171,6 +172,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         weakSelf.discoButton.state = active ? NSControlStateValueOn : NSControlStateValueOff;
         weakSelf.discoButton.needsDisplay = YES;
     };
+    self.settings.stickyModeChanged = ^{ [weakSelf updatePopoverBehavior]; };
     self.settings.microphoneChanged = ^ { [weakSelf updateAutomaticTriggers]; };
     self.settings.hapticsChanged = ^(BOOL enabled) {
         weakSelf.knob.hapticsEnabled = enabled;
@@ -348,7 +350,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     self.popover.delegate = self;
     self.popover.contentViewController = controller;
     self.popover.contentSize = bounds.size;
-    self.popover.behavior = NSPopoverBehaviorTransient;
+    [self updatePopoverBehavior];
 }
 - (void)layoutEffects {
     CGFloat progress = _effectsProgress;
@@ -434,10 +436,24 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     knob.doubleValue = 0;
     [self effectChanged:knob];
 }
+- (BOOL)stickyMode {
+    return [NSUserDefaults.standardUserDefaults boolForKey:@"stickyMode"];
+}
+- (void)updatePopoverBehavior {
+    [self.globalHotkeyPopoverTimer invalidate];
+    self.globalHotkeyPopoverTimer = nil;
+    self.popover.behavior = self.stickyMode ? NSPopoverBehaviorApplicationDefined : NSPopoverBehaviorTransient;
+}
+- (BOOL)popoverShouldClose:(NSPopover *)popover {
+    return !self.stickyMode || _closingFromStatusItem;
+}
 - (void)statusClicked:(id)sender {
     if (NSApp.currentEvent.type == NSEventTypeRightMouseUp) { [self showMenu]; return; }
-    if (self.popover.shown) [self.popover performClose:nil];
-    else {
+    if (self.popover.shown) {
+        _closingFromStatusItem = YES;
+        [self.popover performClose:nil];
+        _closingFromStatusItem = NO;
+    } else {
         [NSApp activateIgnoringOtherApps:YES];
         [self.popover showRelativeToRect:self.statusItem.button.bounds ofView:self.statusItem.button preferredEdge:NSRectEdgeMinY];
         self.nowPlayingReadout.active = self.footerMode == FooterModeNowPlaying;
@@ -446,11 +462,11 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 }
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)visible {
     if (![self statusItemHasMenuBarAnchor]) {
-        [self restoreMenuBarItemShowingPopover:YES];
+        [self restoreMenuBarItemShowingPopover:!self.stickyMode];
         return YES;
     }
-    if (!self.popover.shown) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(.15 * NSEC_PER_SEC)),
-        dispatch_get_main_queue(), ^{ [self statusClicked:nil]; });
+    if (!self.stickyMode && !self.popover.shown) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(.15 * NSEC_PER_SEC)),
+        dispatch_get_main_queue(), ^{ if (!self.stickyMode && !self.popover.shown) [self statusClicked:nil]; });
     return YES;
 }
 - (void)restoreMenuBarItemShowingPopover:(BOOL)showPopover {
@@ -463,7 +479,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         self.settings.menuBarItemVisible = restored;
         if (!restored) {
             [self openMenuBarSettings:nil];
-        } else if (showPopover && !self.popover.shown) {
+        } else if (showPopover && !self.stickyMode && !self.popover.shown) {
             [self statusClicked:nil];
         }
     });
@@ -505,7 +521,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     self.settings.shortcutTitle = self.shortcutTitle;
     self.settings.presetValue = _control.preset;
     self.settings.menuBarItemVisible = [self statusItemHasMenuBarAnchor];
-    if (self.popover.shown) {
+    if (self.popover.shown && !self.stickyMode) {
         _showSettingsAfterPopoverCloses = YES;
         [self.popover performClose:nil];
     } else {
@@ -520,9 +536,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 }
 - (void)popoverDidClose:(NSNotification *)notification {
     [self layoutEffects];
-    [self.globalHotkeyPopoverTimer invalidate];
-    self.globalHotkeyPopoverTimer = nil;
-    self.popover.behavior = NSPopoverBehaviorTransient;
+    [self updatePopoverBehavior];
     self.nowPlayingReadout.active = NO;
     if (!_showSettingsAfterPopoverCloses) return;
     _showSettingsAfterPopoverCloses = NO;
@@ -611,7 +625,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [self showPopoverForGlobalHotkey];
 }
 - (void)showPopoverForGlobalHotkey {
-    if (![self statusItemHasMenuBarAnchor]) return;
+    if (self.stickyMode || ![self statusItemHasMenuBarAnchor]) return;
     self.popover.behavior = NSPopoverBehaviorApplicationDefined;
     if (!self.popover.shown) {
         [self.popover showRelativeToRect:self.statusItem.button.bounds ofView:self.statusItem.button

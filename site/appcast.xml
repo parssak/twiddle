@@ -6,6 +6,22 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Twiddle</title>
         <item>
+            <title>0.8</title>
+            <pubDate>Sat, 19 Sep 2026 17:24:23 -0400</pubDate>
+            <link>https://twiddle.fun</link>
+            <sparkle:version>8</sparkle:version>
+            <sparkle:shortVersionString>0.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Twiddle 0.8
+
+- Adds Sticky Mode in General settings. When enabled, only clicking the menu-bar icon opens or closes the panel.
+- Keeps the panel open when clicking elsewhere, pressing Escape, or opening Settings. Filter shortcuts still work without opening or dismissing the panel.
+- Remembers Sticky Mode across app launches; it is off by default.
+]]></description>
+            <enclosure url="https://github.com/parssak/twiddle/releases/download/v0.8/Twiddle-0.8-arm64.dmg" length="6301263" type="application/octet-stream" sparkle:edSignature="JvYpqPzDS4BbAuXnWjzezrWedJ0BrgzKitdRTmGj24YJq1HpXaLdI+JH2E+dTVhJKL2EwSDCFFDnZQ/xdhjtDQ=="/>
+        </item>
+        <item>
             <title>0.7</title>
             <pubDate>Sat, 19 Sep 2026 17:14:28 -0400</pubDate>
             <link>https://twiddle.fun</link>
@@ -39,25 +55,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 ]]></description>
             <enclosure url="https://github.com/parssak/twiddle/releases/download/v0.6/Twiddle-0.6-arm64.dmg" length="6282362" type="application/octet-stream" sparkle:edSignature="2mHpNX74wcrDJkVvumA+RYZxjarXXlk9R6ngmT7bJlvlSPboV5xHXkS0Z2Jyx0AYaBGh/eGLi1U1Pe4u+TITAQ=="/>
         </item>
-        <item>
-            <title>0.5</title>
-            <pubDate>Fri, 18 Sep 2026 17:53:37 -0400</pubDate>
-            <link>https://twiddle.fun</link>
-            <sparkle:version>5</sparkle:version>
-            <sparkle:shortVersionString>0.5</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# Twiddle 0.5
-
-- Downloads, verifies, installs, and relaunches signed updates inside the app.
-- Checks the signed Twiddle appcast automatically and keeps the wordmark as the manual update control.
-- Pins and verifies Sparkle 2.10.0 as part of the existing shell build.
-]]></description>
-            <enclosure url="https://github.com/parssak/twiddle/releases/download/v0.5/Twiddle-0.5-arm64.dmg" length="6294523" type="application/octet-stream" sparkle:edSignature="L9In026doif+h6OZzVUyo/1RORTLtYA7vBreG11SFr9qp5LazLJlFq0Y+QlZe/0jnA+G4Nuaf2qAWVi2MD8wBw=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: G033LKVGa10UzNWXCw3BQ0scO1wXVVNIF7gGhcLmsC0F8APJqu821+qu/Pw0Bmz54zSvwsh6HUlnd6JB5KkCDw==
-length: 3812
+edSignature: IHa7LoKWsuIv8jiTSvt2OOVm4nQ84noFK4PB4RRtZMdu4CArRSwo0abge4KeQiEgaHsWLZrnja1whxl1FmI6AA==
+length: 3893
 -->

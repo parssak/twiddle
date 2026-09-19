@@ -6,7 +6,7 @@ A little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or 
 
 **[Download Twiddle](https://github.com/parssak/twiddle/releases/latest)** · Apple Silicon · macOS 26+
 
-v0.7 brings reverb, pitch, tape stop, and disco into an animated FX tray below the main knob.
+v0.8 adds Sticky Mode in Settings: only clicking the menu-bar icon opens or closes the panel.
 
 <img src="docs/screenshot.png" width="520" alt="Twiddle in the macOS menu bar, filtering Spotify with a brushed-metal knob">
 

@@ -20,6 +20,7 @@
 @property NSButton *shortcutAccessButton;
 @property NSSwitch *loginSwitch;
 @property NSSwitch *hapticsSwitch;
+@property NSSwitch *stickyModeSwitch;
 @property ShortcutRecorder *recorder;
 @property NSArray<AppGridView *> *appLists;
 @property NSTableView *sidebarTable;
@@ -146,16 +147,16 @@
         [pageContainer addSubview:generalPage];
         [pageContainer addSubview:automaticPage];
         self.pages = @[generalPage, automaticPage];
-        addSettingsCard(generalPage, 396, 200);
-        addSettingsCard(generalPage, 234, 146);
+        addSettingsCard(generalPage, 346, 250);
+        addSettingsCard(generalPage, 184, 146);
         addSettingsCard(automaticPage, 430, 166);
         addSettingsCard(automaticPage, 306, 112);
         addSettingsCard(automaticPage, 232, 62);
         addSettingsCard(automaticPage, 74, 146);
-        for (NSNumber *y in @[@546, @496, @446]) addSettingsSeparator(generalPage, y.doubleValue);
+        for (NSNumber *y in @[@546, @496, @446, @396]) addSettingsSeparator(generalPage, y.doubleValue);
         addSettingsSeparator(automaticPage, 362);
-        NSArray *generalTitles = @[@"Menu Bar icon", @"Open at Login", @"Trackpad Haptics", @"⌥F10–F12 shortcuts"];
-        NSArray *generalCenters = @[@571, @521, @471, @421];
+        NSArray *generalTitles = @[@"Menu Bar icon", @"Open at Login", @"Trackpad Haptics", @"Sticky Mode", @"⌥F10–F12 shortcuts"];
+        NSArray *generalCenters = @[@571, @521, @471, @421, @371];
         for (NSUInteger i = 0; i < generalTitles.count; i++)
             addSettingsRowTitle(generalPage, generalTitles[i], [generalCenters[i] doubleValue], 190, NSFontWeightRegular);
         NSArray *automaticTitles = @[@"Apply when mic is active", @"Microphone app", @"Hold shortcut", @"Filter to apply"];
@@ -166,7 +167,7 @@
         NSMutableArray *appLists = [NSMutableArray new];
         for (NSInteger i = 0; i < 2; i++) {
             NSView *page = i ? automaticPage : generalPage;
-            CGFloat titleY = i ? 185 : 345;
+            CGFloat titleY = i ? 185 : 295;
             NSTextField *title = [NSTextField labelWithString:i ? @"Apps that trigger Twiddle" : @"Apps to Twiddle"];
             title.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
             title.frame = NSMakeRect(SettingsContentInset, titleY, SettingsContentWidth - 70, 20);
@@ -204,7 +205,7 @@
         self.menuBarSettingsButton.accessibilityLabel = @"Open Menu Bar Settings";
         [generalPage addSubview:self.menuBarSettingsButton];
         self.shortcutAccessButton = [NSButton buttonWithTitle:@"Allow Accessibility…" target:self action:@selector(requestShortcutAccess:)];
-        self.shortcutAccessButton.frame = NSMakeRect(270, 405, 172, 32);
+        self.shortcutAccessButton.frame = NSMakeRect(270, 355, 172, 32);
         self.shortcutAccessButton.bezelStyle = NSBezelStyleRounded;
         self.shortcutAccessButton.controlSize = NSControlSizeSmall;
         [generalPage addSubview:self.shortcutAccessButton];
@@ -216,13 +217,18 @@
         self.hapticsSwitch.target = self;
         self.hapticsSwitch.action = @selector(toggleHaptics:);
         self.hapticsSwitch.accessibilityLabel = @"Trackpad Haptics";
+        self.stickyModeSwitch = [NSSwitch new];
+        self.stickyModeSwitch.target = self;
+        self.stickyModeSwitch.action = @selector(toggleStickyMode:);
+        self.stickyModeSwitch.accessibilityLabel = @"Sticky Mode";
+        self.stickyModeSwitch.toolTip = @"Only the menu-bar icon opens or closes the panel.";
         self.microphoneSwitch = [NSSwitch new];
         self.microphoneSwitch.target = self;
         self.microphoneSwitch.action = @selector(toggleMicrophone:);
         self.microphoneSwitch.accessibilityLabel = @"Apply when mic is active";
         self.microphoneSwitch.toolTip = @"Use the preset while the selected apps have an active audio input.";
-        NSArray<NSSwitch *> *switches = @[self.loginSwitch, self.hapticsSwitch];
-        NSArray *switchCenters = @[@521, @471];
+        NSArray<NSSwitch *> *switches = @[self.loginSwitch, self.hapticsSwitch, self.stickyModeSwitch];
+        NSArray *switchCenters = @[@521, @471, @421];
         for (NSUInteger i = 0; i < switches.count; i++) {
             NSSwitch *control = switches[i];
             [control sizeToFit];
@@ -293,7 +299,7 @@
                 }
             }
         }
-        CreditView *credit = [[CreditView alloc] initWithFrame:NSMakeRect(0, 172, 490, 24)];
+        CreditView *credit = [[CreditView alloc] initWithFrame:NSMakeRect(0, 122, 490, 24)];
         credit.autoresizingMask = NSViewWidthSizable;
         [generalPage addSubview:credit];
         panel.contentViewController = splitController;
@@ -385,6 +391,7 @@
     [self.window makeKeyAndOrderFront:nil];
 }
 - (void)refreshSwitches {
+    self.stickyModeSwitch.state = [NSUserDefaults.standardUserDefaults boolForKey:@"stickyMode"] ? NSControlStateValueOn : NSControlStateValueOff;
     SMAppServiceStatus status = SMAppService.mainAppService.status;
     self.loginSwitch.state = status == SMAppServiceStatusEnabled ? NSControlStateValueOn : NSControlStateValueOff;
     self.loginSwitch.toolTip = status == SMAppServiceStatusRequiresApproval ? @"Allow Twiddle in System Settings → General → Login Items" : nil;
@@ -440,6 +447,11 @@
         alert.informativeText = error.localizedDescription ?: @"Try again from the copy of Twiddle in Applications.";
         [alert beginSheetModalForWindow:self.window completionHandler:nil];
     }
+}
+- (void)toggleStickyMode:(NSSwitch *)sender {
+    [self cancelRecording];
+    [NSUserDefaults.standardUserDefaults setBool:sender.state == NSControlStateValueOn forKey:@"stickyMode"];
+    if (self.stickyModeChanged) self.stickyModeChanged();
 }
 - (void)toggleHaptics:(NSSwitch *)sender {
     [self cancelRecording];

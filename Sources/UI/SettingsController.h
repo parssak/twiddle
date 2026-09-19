@@ -10,6 +10,7 @@
 @property (copy) void (^microphoneChanged)(void);
 @property (copy) void (^discoChanged)(BOOL active);
 @property (copy) void (^hapticsChanged)(BOOL enabled);
+@property (copy) void (^stickyModeChanged)(void);
 @property (copy) void (^appsChanged)(void);
 @property (copy) void (^shortcutChanged)(NSInteger keyCode, NSEventModifierFlags modifiers, NSString *title);
 @property (copy) void (^recordingChanged)(BOOL recording);

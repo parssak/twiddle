@@ -76,6 +76,10 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
     return [NSColor colorWithSRGBRed:0.98245 green:0.46475 blue:0 alpha:1];
 }
 - (double)doubleValue { return _value; }
+- (void)setMetalTint:(NSColor *)metalTint {
+    _metalTint = metalTint;
+    self.needsDisplay = YES;
+}
 - (void)setDoubleValue:(double)value {
     value = isfinite(value) ? fmax(self.unipolar ? 0 : -1, fmin(1, value)) : 0;
     if (_value == value) return;
@@ -131,7 +135,9 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
         double sensitivity = (event.modifierFlags & NSEventModifierFlagShift) ? .001 : .008;
         value = fmax(self.unipolar ? 0 : -1, fmin(1, value + (point.y - previous.y) * sensitivity * (self.unipolar ? .5 : 1)));
         previous = point;
-        [self changeValue:value];
+        // Keep accumulating unsnapped motion so small drag events don't get lost.
+        double stepped = self.dragStep > 0 ? round(value / self.dragStep) * self.dragStep : value;
+        [self changeValue:stepped];
     }
 }
 - (void)scrollWheel:(NSEvent *)event {
@@ -259,7 +265,7 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
     }
     NSRect body = NSMakeRect(center.x - 72, center.y - 72, 144, 144);
     if (!_renderer) _renderer = [KnobRenderer new];
-    [_renderer drawValue:renderedValue lidAngle:_displayedLidAngle ?: 90];
+    [_renderer drawValue:renderedValue lidAngle:_displayedLidAngle ?: 90 metalTint:self.metalTint];
     if (self.window.firstResponder == self && self.enabled) {
         NSBezierPath *focus = [NSBezierPath bezierPathWithOvalInRect:NSInsetRect(body, -4, -4)];
         focus.lineWidth = 1;

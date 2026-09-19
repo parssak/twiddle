@@ -6,6 +6,24 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Twiddle</title>
         <item>
+            <title>0.7</title>
+            <pubDate>Sat, 19 Sep 2026 17:14:28 -0400</pubDate>
+            <link>https://twiddle.fun</link>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>0.7</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Twiddle 0.7
+
+- Expands FX below the main knob with reverb and pitch controls, graphite metal finishes, and light and dark appearances.
+- Adds a hold-to-stop button and disco toggle between the FX knobs.
+- Snaps pitch dragging to semitones while keeping trackpad scrolling smooth.
+- Keeps disco independent of the automatic filter amount.
+- Preserves native popover opening and closing, with a smooth FX expansion and quieter tooltips.
+]]></description>
+            <enclosure url="https://github.com/parssak/twiddle/releases/download/v0.7/Twiddle-0.7-arm64.dmg" length="6301011" type="application/octet-stream" sparkle:edSignature="yE3DYIdUqRR8OxHi6V64fiAhOxrbNCpDwqPfkxQgfs0/Bo1+hZo8DAqwtzfomXd51CeT4+u/uMPkXzYC6zZnCg=="/>
+        </item>
+        <item>
             <title>0.6</title>
             <pubDate>Sat, 19 Sep 2026 12:11:19 -0400</pubDate>
             <link>https://twiddle.fun</link>
@@ -40,6 +58,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: qDXkLq1kKlywnqscKlupdUuV0ZG75jbpHQEQl40VjIkvhfhWGWdoLhyn3neE1XRpgFkm9nrnFsFqa0Wgp5STBQ==
-length: 2577
+edSignature: G033LKVGa10UzNWXCw3BQ0scO1wXVVNIF7gGhcLmsC0F8APJqu821+qu/Pw0Bmz54zSvwsh6HUlnd6JB5KkCDw==
+length: 3812
 -->

@@ -12,7 +12,7 @@ Open http://localhost:8765.
 
 Vercel project: `goose-party/twiddle`, serving `twiddle.fun`. From the repository root, run `npx vercel@59.16.0 link --yes --project twiddle --scope goose-party` once, then `npx vercel@59.16.0 --prod --scope goose-party`. The root `vercel.json` sets `site` as the output directory with no build command; `.vercelignore` excludes local build artifacts.
 
-The download in `index.html` points to the verified v0.4 DMG. Update the versioned asset URL when publishing a new release.
+The download in `index.html` points to the signed and notarized v0.7 DMG. Update the versioned asset URL when publishing a new release.
 
 Assets are derived from `Assets/TwiddleWordmark.svg`, `Assets/AppIcon.png`, and `Assets/KnobMetal.png` in this repository. The knob uses the app’s metal texture and filter-frequency curves. Drag or use arrow keys (Shift for fine control); double-click or press 0 for bypass. Hovering does not move the knob.
 

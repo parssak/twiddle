@@ -41,7 +41,7 @@ static inline void controlSetHeld(FilterControl *c, bool held, double now) {
     controlTransition(c, held ? c->preset : c->baseline, held ? .18 : .4, now);
 }
 
-enum { PresetTriggerShortcut = 1, PresetTriggerMicrophone = 2, PresetTriggerPlayback = 4, PresetTriggerDisco = 8 };
+enum { PresetTriggerShortcut = 1, PresetTriggerMicrophone = 2, PresetTriggerPlayback = 4 };
 
 static inline void controlSetTrigger(FilterControl *c, unsigned source, bool active, double now) {
     unsigned triggers = active ? c->triggers | source : c->triggers & ~source;

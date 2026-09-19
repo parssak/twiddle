@@ -43,7 +43,7 @@ static void photographicLayers(CGImageRef *illumination, CGImageRef *detail) {
 }
 
 @implementation KnobRenderer
-- (void)drawValue:(double)value lidAngle:(double)lidAngle {
+- (void)drawValue:(double)value lidAngle:(double)lidAngle metalTint:(NSColor *)metalTint {
     NSRect body = NSMakeRect(-72, -72, 144, 144);
     // Sweep the photograph's existing reflection with the lid. Adding
     // another specular lobe over its baked sheen would make two light sources.
@@ -89,6 +89,15 @@ static void photographicLayers(CGImageRef *illumination, CGImageRef *detail) {
         endingColor:[NSColor.blackColor colorWithAlphaComponent:fabs(tilt) * .22]];
     [shade drawInRect:face angle:tilt >= 0 ? 90 : -90];
     [NSGraphicsContext restoreGraphicsState];
+    // Shape the midtones without dimming the bright reflection bands. Only the
+    // face gets this finish; the machined silver rim remains a distinct edge.
+    if (metalTint) {
+        [NSGraphicsContext saveGraphicsState];
+        CGContextSetBlendMode(graphics, kCGBlendModeOverlay);
+        [metalTint setFill];
+        [[NSBezierPath bezierPathWithOvalInRect:face] fill];
+        [NSGraphicsContext restoreGraphicsState];
+    }
     NSBezierPath *edge = [NSBezierPath bezierPathWithOvalInRect:face];
     edge.lineWidth = .6;
     [[NSColor.blackColor colorWithAlphaComponent:.35] setStroke];

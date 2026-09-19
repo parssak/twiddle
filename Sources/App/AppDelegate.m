@@ -1,9 +1,10 @@
 #import "AppDelegate.h"
 #import "AudioEngine.h"
-#import "EffectsController.h"
 #import "HoldShortcutMonitor.h"
 #import "GlobalFilterHotkeys.h"
 #import "FilterKnob.h"
+#import "EffectsTrayView.h"
+#import "EffectHoldButton.h"
 #import "SettingsController.h"
 #import "AudioProcessActivity.h"
 #import "PlaybackActivity.h"
@@ -22,6 +23,9 @@ typedef NS_ENUM(NSInteger, FooterMode) {
     FooterModeNowPlaying,
 };
 static const NSTimeInterval GlobalHotkeyPopoverDuration = 1.4;
+static const CGFloat EffectsTrayHeight = 140;
+static const CGFloat EffectKnobSize = 88;
+static const NSPoint EffectKnobPositions[] = { {16, 36}, {136, 36} };
 
 @interface AppDelegate () <NSPopoverDelegate> {
     FilterControl _control;
@@ -31,9 +35,20 @@ static const NSTimeInterval GlobalHotkeyPopoverDuration = 1.4;
     BOOL _showSettingsAfterPopoverCloses;
     NSTimeInterval _filterReadoutUntil;
     NSUInteger _footerTransition;
+    CGFloat _effectsProgress;
+    NSTimeInterval _effectsLastTick;
 }
 @property AudioEngine *engine;
-@property EffectsController *effectsController;
+@property NSArray<FilterKnob *> *effectKnobs;
+@property NSArray<NSTextField *> *effectLabels;
+@property NSButton *effectsButton;
+@property NSView *mainControls;
+@property NSView *effectsTray;
+@property EffectHoldButton *tapeStopButton;
+@property EffectHoldButton *discoButton;
+@property BOOL effectsExpanded;
+@property NSTimer *effectsAnimationTimer;
+@property (copy) NSString *effectReadout;
 @property HoldShortcutMonitor *shortcutMonitor;
 @property GlobalFilterHotkeys *globalFilterHotkeys;
 @property NSStatusItem *statusItem;
@@ -153,10 +168,14 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     };
     self.settings.discoChanged = ^(BOOL active) {
         weakSelf.discoActive = active;
-        [weakSelf updateAutomaticTriggers];
+        weakSelf.discoButton.state = active ? NSControlStateValueOn : NSControlStateValueOff;
+        weakSelf.discoButton.needsDisplay = YES;
     };
     self.settings.microphoneChanged = ^ { [weakSelf updateAutomaticTriggers]; };
-    self.settings.hapticsChanged = ^(BOOL enabled) { weakSelf.knob.hapticsEnabled = enabled; };
+    self.settings.hapticsChanged = ^(BOOL enabled) {
+        weakSelf.knob.hapticsEnabled = enabled;
+        for (FilterKnob *knob in weakSelf.effectKnobs) knob.hapticsEnabled = enabled;
+    };
     self.settings.recordingChanged = ^(BOOL recording) { weakSelf.shortcutMonitor.recording = recording; };
     self.settings.appsChanged = ^{
         AppDelegate *self = weakSelf;
@@ -249,28 +268,171 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     self.nowPlayingReadout.hidden = YES;
     [content addSubview:self.nowPlayingReadout];
     self.settingsButton = [NSButton buttonWithImage:symbol(@"gearshape") target:self action:@selector(showSettings:)];
-    self.settingsButton.frame = NSMakeRect(194, 12, 28, 28);
+    self.settingsButton.frame = NSMakeRect(18, 177, 28, 28);
     self.settingsButton.bordered = NO;
     self.settingsButton.accessibilityLabel = @"Settings";
     self.settingsButton.toolTip = @"Settings";
     self.settingsButton.contentTintColor = NSColor.secondaryLabelColor;
     [content addSubview:self.settingsButton];
     NSButton *effects = [NSButton buttonWithTitle:@"FX" target:self action:@selector(showEffects:)];
-    effects.frame = NSMakeRect(192, 179, 34, 24);
-    effects.bordered = NO; effects.toolTip = @"Reverb, pitch, phaser, and tape stop";
+    effects.frame = NSMakeRect(192, 14, 34, 24);
+    effects.bordered = NO;
+    effects.accessibilityLabel = @"Effects";
+    effects.contentTintColor = NSColor.secondaryLabelColor;
+    self.effectsButton = effects;
+    NSView *root = [[NSView alloc] initWithFrame:bounds];
+    self.mainControls = content;
+    self.effectsTray = [[EffectsTrayView alloc] initWithFrame:NSMakeRect(0, 0, 240, 0)];
+    self.effectsTray.wantsLayer = YES;
+    self.effectsTray.layer.masksToBounds = YES;
+    [root addSubview:self.effectsTray];
+    [root addSubview:content];
+    NSMutableArray *effectKnobs = [NSMutableArray new];
+    NSMutableArray *effectLabels = [NSMutableArray new];
+    NSArray *names = @[@"Reverb", @"Pitch"];
+    for (NSUInteger i = 0; i < names.count; i++) {
+        FilterKnob *knob = [[FilterKnob alloc] initWithFrame:
+            NSMakeRect(EffectKnobPositions[i].x, EffectKnobPositions[i].y, EffectKnobSize, EffectKnobSize)];
+        knob.unipolar = i == 0;
+        knob.metalTint = [NSColor colorWithSRGBRed:.32 green:.35 blue:.39 alpha:1];
+        knob.dragStep = i == 1 ? 1.0 / 12 : 0;
+        knob.hapticsEnabled = self.knob.hapticsEnabled;
+        knob.tag = i;
+        knob.target = self;
+        knob.action = @selector(effectChanged:);
+        knob.resetAction = @selector(resetEffect:);
+        knob.accessibilityLabel = names[i];
+        if (i == 1) knob.toolTip = @"Drag: steps · Scroll: smooth";
+        knob.hidden = YES;
+        [self.effectsTray addSubview:knob];
+        [effectKnobs addObject:knob];
+        NSTextField *label = [NSTextField labelWithString:names[i]];
+        label.font = [NSFont systemFontOfSize:10 weight:NSFontWeightMedium];
+        label.textColor = NSColor.secondaryLabelColor;
+        label.alignment = NSTextAlignmentCenter;
+        label.hidden = YES;
+        [self.effectsTray addSubview:label];
+        [effectLabels addObject:label];
+    }
+    self.effectKnobs = effectKnobs;
+    self.effectLabels = effectLabels;
+    self.tapeStopButton = [[EffectHoldButton alloc] initWithFrame:NSMakeRect(108, 88, 24, 24)];
+    self.tapeStopButton.title = @"";
+    self.tapeStopButton.image = symbol(@"stop.fill");
+    self.tapeStopButton.iconSize = 12;
+    self.tapeStopButton.imagePosition = NSImageOnly;
+    self.tapeStopButton.bordered = NO;
+    self.tapeStopButton.accessibilityLabel = @"Hold for tape stop";
+    self.tapeStopButton.toolTip = @"Hold to stop";
+    __weak AppDelegate *weakSelf = self;
+    self.tapeStopButton.heldChanged = ^(BOOL held) { weakSelf.engine.tapeStop = held; };
+    [self.effectsTray addSubview:self.tapeStopButton];
+    self.discoButton = [[EffectHoldButton alloc] initWithFrame:NSMakeRect(108, 54, 24, 24)];
+    self.discoButton.momentary = NO;
+    self.discoButton.title = @"";
+    self.discoButton.image = symbol(@"sparkles");
+    self.discoButton.iconSize = 16;
+    self.discoButton.imagePosition = NSImageOnly;
+    self.discoButton.bordered = NO;
+    self.discoButton.activeColor = [NSColor colorWithSRGBRed:.72 green:.46 blue:1 alpha:1];
+    self.discoButton.state = self.discoActive ? NSControlStateValueOn : NSControlStateValueOff;
+    self.discoButton.accessibilityLabel = @"Disco";
+    self.discoButton.toolTip = @"Disco";
+    self.discoButton.target = self;
+    self.discoButton.action = @selector(toggleDisco:);
+    [self.effectsTray addSubview:self.discoButton];
     [content addSubview:effects];
     NSViewController *controller = [NSViewController new];
-    controller.view = content;
+    controller.view = root;
     self.popover = [NSPopover new];
     self.popover.delegate = self;
     self.popover.contentViewController = controller;
     self.popover.contentSize = bounds.size;
     self.popover.behavior = NSPopoverBehaviorTransient;
 }
+- (void)layoutEffects {
+    CGFloat progress = _effectsProgress;
+    CGFloat eased = progress * progress * (3 - 2 * progress);
+    CGFloat height = EffectsTrayHeight * eased;
+    // Resize the single popover and shift the main section by the same amount
+    // so its controls stay anchored while the effects section unfolds below.
+    BOOL animates = self.popover.animates;
+    self.popover.animates = NO;
+    self.popover.contentSize = NSMakeSize(240, 216 + height);
+    self.popover.animates = animates;
+    self.mainControls.frame = NSMakeRect(0, height, 240, 216);
+    self.effectsTray.frame = NSMakeRect(0, 0, 240, height);
+    CGFloat reveal = fmax(0, fmin(1, (progress - .2) / .8));
+    reveal = reveal * reveal * (3 - 2 * reveal);
+    for (NSUInteger i = 0; i < self.effectKnobs.count; i++) {
+        FilterKnob *knob = self.effectKnobs[i];
+        knob.frame = NSMakeRect(EffectKnobPositions[i].x,
+            EffectKnobPositions[i].y + height - EffectsTrayHeight + 10 * (1 - reveal), EffectKnobSize, EffectKnobSize);
+        knob.alphaValue = reveal;
+        knob.hidden = reveal == 0;
+        NSTextField *label = self.effectLabels[i];
+        label.frame = NSMakeRect(NSMinX(knob.frame), NSMinY(knob.frame) - 14, EffectKnobSize, 14);
+        label.alphaValue = reveal;
+        label.hidden = reveal == 0;
+    }
+    self.tapeStopButton.frame = NSMakeRect(108,
+        88 + height - EffectsTrayHeight + 10 * (1 - reveal), 24, 24);
+    self.tapeStopButton.alphaValue = reveal;
+    self.tapeStopButton.hidden = reveal == 0;
+    self.discoButton.frame = NSMakeRect(108,
+        54 + height - EffectsTrayHeight + 10 * (1 - reveal), 24, 24);
+    self.discoButton.alphaValue = reveal;
+    self.discoButton.hidden = reveal == 0;
+}
+- (void)toggleDisco:(id)sender {
+    [self.settings setDiscoEnabled:!self.discoActive];
+}
 - (void)showEffects:(id)sender {
-    [self.popover performClose:nil];
-    if (!self.effectsController) self.effectsController = [[EffectsController alloc] initWithEngine:self.engine];
-    [self.effectsController show];
+    self.effectsExpanded = !self.effectsExpanded;
+    if (!self.effectsExpanded) self.tapeStopButton.held = NO;
+    self.effectsButton.contentTintColor = self.effectsExpanded ? FilterKnob.filterColor : NSColor.secondaryLabelColor;
+    self.effectsButton.accessibilityValue = self.effectsExpanded ? @"Expanded" : @"Collapsed";
+    if (NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion) {
+        [self.effectsAnimationTimer invalidate];
+        self.effectsAnimationTimer = nil;
+        _effectsProgress = self.effectsExpanded ? 1 : 0;
+        [self layoutEffects];
+        return;
+    }
+    // A second click reverses the running timeline from its current position.
+    if (self.effectsAnimationTimer) return;
+    _effectsLastTick = NSProcessInfo.processInfo.systemUptime;
+    __weak AppDelegate *weakSelf = self;
+    self.effectsAnimationTimer = [NSTimer timerWithTimeInterval:1.0 / 60 repeats:YES block:^(NSTimer *timer) {
+        AppDelegate *self = weakSelf;
+        if (!self) { [timer invalidate]; return; }
+        NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+        CGFloat step = (now - self->_effectsLastTick) / .24;
+        self->_effectsLastTick = now;
+        self->_effectsProgress = fmax(0, fmin(1,
+            self->_effectsProgress + (self.effectsExpanded ? step : -step)));
+        [self layoutEffects];
+        if (self->_effectsProgress == (self.effectsExpanded ? 1 : 0)) {
+            [timer invalidate];
+            self.effectsAnimationTimer = nil;
+        }
+    }];
+    [NSRunLoop.mainRunLoop addTimer:self.effectsAnimationTimer forMode:NSRunLoopCommonModes];
+}
+- (void)effectChanged:(NSControl *)knob {
+    double value = knob.doubleValue;
+    if (knob.tag == 0) self.engine.reverb = value;
+    else self.engine.pitch = value * 12;
+    NSString *name = @[@"Reverb", @"Pitch"][knob.tag];
+    NSString *amount = knob.tag == 1 ? [NSString stringWithFormat:@"%+.2f st", value * 12] :
+        (value == 0 ? @"Off" : [NSString stringWithFormat:@"%.0f%%", value * 100]);
+    self.effectReadout = [NSString stringWithFormat:@"%@ · %@", name, amount];
+    _filterReadoutUntil = NSProcessInfo.processInfo.systemUptime + 1.0;
+    [self updateControl];
+}
+- (void)resetEffect:(FilterKnob *)knob {
+    knob.doubleValue = 0;
+    [self effectChanged:knob];
 }
 - (void)statusClicked:(id)sender {
     if (NSApp.currentEvent.type == NSEventTypeRightMouseUp) { [self showMenu]; return; }
@@ -350,7 +512,14 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         [self.settings show];
     }
 }
+- (void)popoverWillClose:(NSNotification *)notification {
+    self.tapeStopButton.held = NO;
+    [self.effectsAnimationTimer invalidate];
+    self.effectsAnimationTimer = nil;
+    _effectsProgress = self.effectsExpanded ? 1 : 0;
+}
 - (void)popoverDidClose:(NSNotification *)notification {
+    [self layoutEffects];
     [self.globalHotkeyPopoverTimer invalidate];
     self.globalHotkeyPopoverTimer = nil;
     self.popover.behavior = NSPopoverBehaviorTransient;
@@ -405,7 +574,8 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     }
     self.knob.enabled = self.engine.running && !_control.held;
     self.knob.accessibilityLabel = @"Current filter";
-    NSString *name = [FilterKnob labelForValue:displayed];
+    if (now >= _filterReadoutUntil) self.effectReadout = nil;
+    NSString *name = self.effectReadout ?: [FilterKnob labelForValue:displayed];
     if (![self.readout.stringValue isEqualToString:name]) self.readout.stringValue = name;
     FooterMode mode = FooterModeNone;
     if (now < _filterReadoutUntil) {
@@ -419,16 +589,19 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [self showFooterMode:mode];
 }
 - (void)resetKnob:(id)sender {
+    self.effectReadout = nil;
     _filterReadoutUntil = NSProcessInfo.processInfo.systemUptime + 1.0;
     controlReset(&_control, NSProcessInfo.processInfo.systemUptime);
     [self updateControl];
 }
 - (void)knobChanged:(id)sender {
+    self.effectReadout = nil;
     _filterReadoutUntil = NSProcessInfo.processInfo.systemUptime + 1.0;
     controlSetBaseline(&_control, self.knob.doubleValue, NSProcessInfo.processInfo.systemUptime);
     [self updateControl];
 }
 - (void)performGlobalFilterHotkey:(GlobalFilterHotkeyAction)action {
+    self.effectReadout = nil;
     if (_suspended || !self.engine.running) return;
     NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
     _filterReadoutUntil = now + GlobalHotkeyPopoverDuration;
@@ -512,7 +685,6 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         if (!self || ![self.selectedBundle isEqualToString:@"com.spotify.client"]) return;
         self.nowPlayingText = track;
         self.nowPlayingReadout.stringValue = track ?: @"";
-        self.nowPlayingReadout.toolTip = track;
         self.nowPlayingReadout.accessibilityLabel = track.length ? [@"Now playing: " stringByAppendingString:track] : nil;
         [self updateControl];
     }];
@@ -551,7 +723,6 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [self updateControl];
 }
 - (void)updateAutomaticTriggers {
-    controlSetTrigger(&_control, PresetTriggerDisco, !_suspended && self.engine.running && self.discoActive, NSProcessInfo.processInfo.systemUptime);
     BOOL active = !_suspended && self.engine.running && [NSUserDefaults.standardUserDefaults boolForKey:@"microphoneEnabled"] && microphoneActive([NSUserDefaults.standardUserDefaults stringForKey:@"microphoneScope"]);
     controlSetTrigger(&_control, PresetTriggerMicrophone, active, NSProcessInfo.processInfo.systemUptime);
     NSArray *processes = !_suspended && self.engine.running ? activeOutputProcesses([NSSet setWithArray:[NSUserDefaults.standardUserDefaults stringArrayForKey:@"triggerBundles"] ?: @[]]) : @[];
@@ -564,7 +735,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         self.targetBundles.count ? [NSString stringWithFormat:@"%lu apps", (unsigned long)self.targetBundles.count] : @"No apps selected";
     self.sourceButton.image = self.targetBundles.count == 1 ? [ApplicationInfo iconForBundle:self.selectedBundle] : symbol(@"square.grid.2x2");
     self.sourceButton.accessibilityLabel = [@"Apps to Twiddle: " stringByAppendingString:name];
-    self.sourceButton.toolTip = [name stringByAppendingString:@" — choose apps to Twiddle"];
+    self.sourceButton.toolTip = @"Choose apps";
 }
 - (void)scopeChanged:(id)sender {
     [self showSettings:nil];

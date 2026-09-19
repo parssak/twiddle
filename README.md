@@ -6,7 +6,7 @@ A little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or 
 
 **[Download Twiddle](https://github.com/parssak/twiddle/releases/latest)** · Apple Silicon · macOS 26+
 
-v0.6 restores a removed menu-bar icon when you reopen Twiddle and keeps the filter accent orange.
+v0.7 brings reverb, pitch, tape stop, and disco into an animated FX tray below the main knob.
 
 <img src="docs/screenshot.png" width="520" alt="Twiddle in the macOS menu bar, filtering Spotify with a brushed-metal knob">
 
@@ -22,7 +22,7 @@ Allow system audio recording when macOS asks. Twiddle also asks for access to Sp
 - **Double-click:** smoothly reset to center.
 - **⌥F10 / ⌥F11 / ⌥F12:** toggle between bypass and your preset, step down, or step up from anywhere. The menu-bar popover briefly shows each change.
 - **Click the source icon:** choose which apps get filtered. Set trigger apps in Auto-apply settings.
-- **Click FX:** open the live reverb, pitch, phaser, and Tape Stop controls.
+- **Click FX:** expand the integrated reverb and pitch knobs, hold-to-stop button, and disco toggle. Drag pitch for semitone steps or scroll for smooth adjustment.
 - **Click the cog:** open Settings. Set the preset with its own knob, then use the hold shortcut to activate it.
 - **Right-click the menu bar icon:** open Settings, manage the hold shortcut, or quit.
 
@@ -34,7 +34,7 @@ Settings has General and Auto-apply pages. General contains Apps to Twiddle. Aut
 
 The first Settings row opens macOS Menu Bar settings while the icon is present. If you drag the icon out of the menu bar, reopening Twiddle from Applications, Spotlight, or Raycast restores it; the same row becomes a **Restore Icon** button while it is missing. Twiddle falls back to System Settings only when macOS cannot place the restored item.
 
-**Apply when mic is active** applies the preset while **Any app** or **Wispr Flow** has an active audio input. It starts in Wispr Flow mode, enabled when Flow is installed; existing preferences are preserved. Twiddle excludes its own capture. This is experimental: virtual audio inputs and apps that keep their mic open while silent or muted can also activate it. The preset returns to your previous setting after all playback, microphone, shortcut, and disco triggers release.
+**Apply when mic is active** applies the preset while **Any app** or **Wispr Flow** has an active audio input. It starts in Wispr Flow mode, enabled when Flow is installed; existing preferences are preserved. Twiddle excludes its own capture. This is experimental: virtual audio inputs and apps that keep their mic open while silent or muted can also activate it. The preset returns to your previous setting after all playback, microphone, and shortcut triggers release.
 
 Click the Twiddle wordmark in Settings to check, download, and install updates when disco mode is inactive.
 
@@ -44,12 +44,12 @@ This is an early release. Built-in speakers and wired stereo headphones are the 
 
 ## Disco mode
 
-Move your pointer across all the letters of the Twiddle wordmark in Settings to start disco mode, or use `twiddle disco on`. The screen dims and applies your Auto-apply preset immediately, then the disco ball drops in.
+Move your pointer across all the letters of the Twiddle wordmark in Settings to start disco mode, or use `twiddle disco on`. The screen dims, then the disco ball drops in. Disco does not change the filter amount.
 
 - **Pull the ball:** stretch and tilt its cord. Pull far enough to snap it back and cycle through album colours, warm, cool, and rainbow rays. Trackpad haptics build as you approach the snap point; a shorter pull springs back without changing the mode.
 - **Swipe with two fingers over the ball:** speed up its spin or send it in the opposite direction. The extra momentum gradually settles.
 - **Spotify now playing:** song, artist, and album artwork appear at the bottom left of each display, with blur transitions between tracks. Album mode samples colours from the current cover and falls back to white when artwork is missing or monochrome.
-- **Exit:** click the ball, press Escape, close Settings, or run `twiddle disco off`. Another active Auto-apply trigger can keep the preset applied after disco ends.
+- **Exit:** click the ball, press Escape, close Settings, or run `twiddle disco off`. Other Auto-apply triggers work independently of disco.
 
 Artwork loads asynchronously; Twiddle keeps the current cover and transition images rather than a permanent artwork collection. macOS may cache downloads.
 

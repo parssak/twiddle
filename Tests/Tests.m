@@ -24,16 +24,16 @@
 #define CHECK(condition) do { if (!(condition)) { fprintf(stderr, "Failed: %s (line %d)\n", #condition, __LINE__); return 1; } } while (0)
 
 static int controlTests(void) {
-    FilterControl disco = {.baseline = .2, .preset = -.7};
-    controlSetTrigger(&disco, PresetTriggerDisco, true, 1);
-    CHECK(disco.held && fabs(controlValue(&disco, 2)+.7) < .00001);
-    controlSetPreset(&disco, -.4, 2);
-    CHECK(fabs(controlValue(&disco, 3)+.4) < .00001);
-    controlSetTrigger(&disco, PresetTriggerMicrophone, true, 3);
-    controlSetTrigger(&disco, PresetTriggerDisco, false, 4);
-    CHECK(disco.held);
-    controlSetTrigger(&disco, PresetTriggerMicrophone, false, 5);
-    CHECK(!disco.held && fabs(controlValue(&disco, 6)-.2) < .00001);
+    FilterControl overlapping = {.baseline = .2, .preset = -.7};
+    controlSetTrigger(&overlapping, PresetTriggerShortcut, true, 1);
+    CHECK(overlapping.held && fabs(controlValue(&overlapping, 2)+.7) < .00001);
+    controlSetPreset(&overlapping, -.4, 2);
+    CHECK(fabs(controlValue(&overlapping, 3)+.4) < .00001);
+    controlSetTrigger(&overlapping, PresetTriggerMicrophone, true, 3);
+    controlSetTrigger(&overlapping, PresetTriggerShortcut, false, 4);
+    CHECK(overlapping.held);
+    controlSetTrigger(&overlapping, PresetTriggerMicrophone, false, 5);
+    CHECK(!overlapping.held && fabs(controlValue(&overlapping, 6)-.2) < .00001);
 
     float quiet[] = {0, 0.0001f, -0.0001f, NAN, INFINITY};
     float sound[] = {0, -.002f, 0};

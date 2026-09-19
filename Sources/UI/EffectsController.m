@@ -1,18 +1,9 @@
 #import "EffectsController.h"
 #import "AudioEngine.h"
 #import "FilterKnob.h"
+#import "EffectHoldButton.h"
 
 enum { ReverbControl, PitchControl, PhaserControl };
-@interface EffectHoldButton : NSButton
-@property (copy) void (^heldChanged)(BOOL);
-@end
-@implementation EffectHoldButton
-- (void)mouseDown:(NSEvent *)event {
-    if (self.heldChanged) self.heldChanged(YES);
-    @try { [super mouseDown:event]; }
-    @finally { if (self.heldChanged) self.heldChanged(NO); }
-}
-@end
 
 @interface EffectsController ()
 @property AudioEngine *engine;

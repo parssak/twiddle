@@ -10,6 +10,8 @@ typedef struct {
     float lastPitch, lastControl, cutoffStart, cutoffEnd;
     double time, smoothing;
     float amount;
+    bool rendering, engaged;
+    unsigned latencyFrames, warmupFrames, tailFrames, drainFrames;
     float dry[2][EffectBlockSize], wet[2][EffectBlockSize];
 } NativeEffect;
 OSStatus nativeEffectInit(NativeEffect *r, double sampleRate, NativeEffectKind kind);

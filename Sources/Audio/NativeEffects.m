@@ -53,6 +53,13 @@ OSStatus nativeEffectInit(NativeEffect *r, double rate, NativeEffectKind kind) {
     }
 #undef PARAM
     SETUP(AudioUnitInitialize(r->unit));
+    Float64 latency = 0, tail = 0;
+    UInt32 size = sizeof(latency);
+    SETUP(AudioUnitGetProperty(r->unit, kAudioUnitProperty_Latency, kAudioUnitScope_Global, 0, &latency, &size));
+    size = sizeof(tail);
+    SETUP(AudioUnitGetProperty(r->unit, kAudioUnitProperty_TailTime, kAudioUnitScope_Global, 0, &tail, &size));
+    r->latencyFrames = (unsigned)ceil(fmax(0, latency) * rate);
+    r->tailFrames = (unsigned)ceil((fmax(0, latency) + fmax(0, tail)) * rate);
 #undef SETUP
     r->smoothing = 1 - exp(-1 / (.012 * rate));
     return noErr;
@@ -83,13 +90,29 @@ OSStatus nativeEffectProcess(NativeEffect *r, AudioBufferList *audio, unsigned f
         }
         target = fminf(1, control * 20);
     }
+    if (target > 0 && !r->engaged && !r->amount) r->warmupFrames = r->latencyFrames;
+    r->engaged = target > 0;
+    // Finish the fade and drain with silence before sleeping. Matrix Reverb's
+    // reset alone leaves delay-line audio behind, so freezing it replays old tails.
+    if (!target && !r->amount && !r->drainFrames) {
+        if (r->rendering) {
+            OSStatus status = AudioUnitReset(r->unit, kAudioUnitScope_Global, 0);
+            if (status) return status;
+            r->rendering = false;
+            r->time = 0;
+        }
+        return noErr;
+    }
+    r->rendering = true;
     for (unsigned base = 0; base < frames; base += EffectBlockSize) {
         unsigned count = MIN(EffectBlockSize, frames - base);
+        if (target > 0 || r->amount > 0) r->drainFrames = r->tailFrames;
+        else r->drainFrames -= MIN(count, r->drainFrames);
         for (unsigned ch = 0; ch < 2; ch++) {
             AudioBuffer *buffer = &audio->mBuffers[audio->mNumberBuffers == 1 ? 0 : ch];
             for (unsigned i = 0; i < count; i++) {
                 float sample = ((float *)buffer->mData)[(base + i) * buffer->mNumberChannels + (buffer->mNumberChannels == 2 ? ch : 0)];
-                sample = (r->kind == NativeEffectPitch || target > 0 || r->amount > 1e-6) && isfinite(sample) ? sample : 0;
+                sample = (target > 0 || r->amount > 1e-6) && isfinite(sample) ? sample : 0;
                 r->dry[ch][i] = sample;
             }
         }
@@ -100,8 +123,11 @@ OSStatus nativeEffectProcess(NativeEffect *r, AudioBufferList *audio, unsigned f
         r->time += count;
         if (status) return status;
         for (unsigned i = 0; i < count; i++) {
-            r->amount += (target - r->amount) * r->smoothing;
-            if (!target && r->amount < 1e-6) r->amount = 0;
+            // Keep dry audio audible while the pitch unit fills its delay line.
+            float mixTarget = r->warmupFrames ? 0 : target;
+            if (r->warmupFrames) r->warmupFrames--;
+            r->amount += (mixTarget - r->amount) * r->smoothing;
+            if (!mixTarget && r->amount < 1e-6) r->amount = 0;
             for (unsigned ch = 0; ch < 2; ch++) {
                 AudioBuffer *buffer = &audio->mBuffers[audio->mNumberBuffers == 1 ? 0 : ch];
                 float *sample = &((float *)buffer->mData)[(base + i) * buffer->mNumberChannels + (buffer->mNumberChannels == 2 ? ch : 0)];

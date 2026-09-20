@@ -278,7 +278,9 @@ int cliTests(void);
 
 int nativeEffectTests(void);
 int performanceEffectsTests(void);
+int energyTests(void);
 int selfTest(void) {
+    if (energyTests()) return 1;
     if (performanceEffectsTests()) return 1;
     if (nativeEffectTests()) return 1;
     if (cliTests()) return 1;

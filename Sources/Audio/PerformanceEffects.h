@@ -5,8 +5,8 @@
 #include <string.h>
 
 typedef struct {
-    double rate, smoothing, tapeRead, tapeSpeed, phaserPhase;
-    float phaserAmount, tapeMix, allpass[2][6], phaserFeedback[2];
+    double rate, smoothing, tapeRead, tapeSpeed;
+    float tapeMix;
     float *history;
     unsigned historySize, historyWrite;
     bool tapeHeld;
@@ -30,39 +30,27 @@ static inline float performanceSmooth(float current, float target, double smooth
     current += (target - current) * smoothing;
     return fabsf(current - target) < 1e-4f ? target : current;
 }
-static inline void performanceFrame(PerformanceEffects *d, float phaser, bool tapeHeld, float audio[2]) {
-    d->phaserAmount = performanceSmooth(d->phaserAmount, audioUnitAmount(phaser), d->smoothing);
+static inline void performanceFrame(PerformanceEffects *d, bool tapeHeld, float audio[2]) {
     d->tapeMix = performanceSmooth(d->tapeMix, tapeHeld ? 1 : 0, d->smoothing);
     if (tapeHeld && !d->tapeHeld) { d->tapeRead = d->historyWrite; d->tapeSpeed = 1; }
     d->tapeHeld = tapeHeld;
-    double hz = 180 * pow(18, .5 + .5 * sin(d->phaserPhase));
-    double tangent = tan(M_PI * fmin(hz, d->rate * .2) / d->rate);
-    double coefficient = (tangent - 1) / (tangent + 1);
     unsigned read = (unsigned)d->tapeRead;
     float fraction = d->tapeRead - read;
     for (unsigned ch = 0; ch < 2; ch++) {
         float x = isfinite(audio[ch]) ? audio[ch] : 0;
         d->history[d->historyWrite * 2 + ch] = x;
-        float tape = d->history[read * 2 + ch] + fraction *
-            (d->history[((read + 1) % d->historySize) * 2 + ch] - d->history[read * 2 + ch]);
-        tape *= sqrt(fmax(0, d->tapeSpeed));
-        x += d->tapeMix * (tape - x);
-        float phased = x + .55f * d->phaserFeedback[ch];
-        for (unsigned stage = 0; stage < 6; stage++) {
-            float next = coefficient * phased + d->allpass[ch][stage];
-            d->allpass[ch][stage] = phased - coefficient * next;
-            phased = next;
+        if (d->tapeMix) {
+            float tape = d->history[read * 2 + ch] + fraction *
+                (d->history[((read + 1) % d->historySize) * 2 + ch] - d->history[read * 2 + ch]);
+            tape *= sqrt(fmax(0, d->tapeSpeed));
+            x += d->tapeMix * (tape - x);
         }
-        d->phaserFeedback[ch] = audioSoftLimit(phased);
-        x += d->phaserAmount * (.5f * (x + phased) - x);
-        audio[ch] = d->tapeMix || d->phaserAmount ? audioSoftLimit(x) : x;
+        audio[ch] = d->tapeMix ? audioSoftLimit(x) : x;
     }
     if (d->tapeMix) {
         d->tapeRead += d->tapeSpeed;
         if (d->tapeRead >= d->historySize) d->tapeRead -= d->historySize;
         d->tapeSpeed = fmax(0, d->tapeSpeed - 1 / (.9 * d->rate));
     }
-    d->phaserPhase += 2 * M_PI * (.1 + 1.5 * d->phaserAmount) / d->rate;
-    if (d->phaserPhase >= 2 * M_PI) d->phaserPhase -= 2 * M_PI;
     d->historyWrite = (d->historyWrite + 1) % d->historySize;
 }

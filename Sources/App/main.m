@@ -1,6 +1,5 @@
 #import "AppDelegate.h"
 #import "AudioEngine.h"
-#import "EffectsController.h"
 #import "TwiddleControl.h"
 
 int selfTest(void);
@@ -24,13 +23,6 @@ int main(int argc, const char *argv[]) {
         // Give hover help a deliberate dwell time (milliseconds), scoped to Twiddle.
         [NSUserDefaults.standardUserDefaults setInteger:1500 forKey:@"NSInitialToolTipDelay"];
         NSApplication *app = NSApplication.sharedApplication;
-        if (argc > 1 && !strcmp(argv[1], "--effects-preview")) {
-            EffectsController *preview = [[EffectsController alloc] initWithEngine:[AudioEngine new]];
-            [app setActivationPolicy:NSApplicationActivationPolicyAccessory];
-            [preview show];
-            [app run];
-            return 0;
-        }
         AppDelegate *delegate = [AppDelegate new];
         app.delegate = delegate;
         [app setActivationPolicy:NSApplicationActivationPolicyAccessory];

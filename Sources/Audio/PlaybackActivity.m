@@ -41,6 +41,7 @@ static OSStatus measurePlayback(AudioObjectID device, const AudioTimeStamp *now,
     return self;
 }
 - (NSString *)errorMessage { return _errorMessage; }
+- (BOOL)isMonitoring { return _io != NULL; }
 - (BOOL)audible {
     uint64_t last = atomic_load_explicit(&_state.lastSound, memory_order_relaxed);
     return last && audioRecentlyAudible((mach_absolute_time() - last) * _secondsPerTick);

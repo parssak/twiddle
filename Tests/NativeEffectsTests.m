@@ -2,9 +2,66 @@
 #include <math.h>
 #include <stdio.h>
 #define CHECK_ROOM(x) do { if (!(x)) { fprintf(stderr, "Reverb failed: %s line %d\n", #x, __LINE__); nativeEffectDestroy(&room); return 1; } } while (0)
+static int bypassTests(double rate) {
+    for (NativeEffectKind kind = 0; kind < NativeEffectCount; kind++) {
+        NativeEffect room = {0};
+        CHECK_ROOM(nativeEffectInit(&room, rate, kind) == noErr);
+        float samples[1024];
+        AudioBufferList list = {1, {{2, sizeof(samples), samples}}};
+        for (unsigned b = 0; b < 100; b++) {
+            for (unsigned i = 0; i < 1024; i++) samples[i] = i % 2 ? -.12f : .23f;
+            CHECK_ROOM(nativeEffectProcess(&room, &list, 512, 0) == noErr);
+            for (unsigned i = 0; i < 1024; i++) CHECK_ROOM(samples[i] == (i % 2 ? -.12f : .23f));
+        }
+        CHECK_ROOM(!room.rendering && room.time == 0);
+        if (kind == NativeEffectPitch) {
+            // Re-enable during the silent drain as well as after the unit sleeps.
+            CHECK_ROOM(nativeEffectProcess(&room, &list, 512, 5) == noErr);
+            CHECK_ROOM(nativeEffectProcess(&room, &list, 512, 0) == noErr);
+            CHECK_ROOM(room.rendering && room.amount == 0);
+            for (unsigned i = 0; i < 1024; i++) samples[i] = .15f;
+            CHECK_ROOM(nativeEffectProcess(&room, &list, 512, -5) == noErr);
+            for (unsigned i = 0; i < MIN(512, room.latencyFrames); i++) CHECK_ROOM(samples[2*i] == .15f);
+            for (unsigned b = 0; b < (unsigned)ceil(rate / 512); b++)
+                CHECK_ROOM(nativeEffectProcess(&room, &list, 512, 0) == noErr);
+        }
+        // Repeated enable/disable must fade out, sleep, and resume without old audio.
+        for (unsigned cycle = 0; cycle < 2; cycle++) {
+            for (unsigned b = 0; b < (unsigned)ceil(rate / 512); b++) {
+                for (unsigned i = 0; i < 1024; i++) samples[i] = .15f;
+                CHECK_ROOM(nativeEffectProcess(&room, &list, 512, kind == NativeEffectPitch ? 5 : .7f) == noErr);
+                if (!b && kind == NativeEffectPitch) {
+                    for (unsigned i = 0; i < MIN(512, room.latencyFrames); i++) CHECK_ROOM(samples[2*i] == .15f);
+                }
+            }
+            CHECK_ROOM(room.rendering && room.amount > .5f);
+            CHECK_ROOM(nativeEffectProcess(&room, &list, 512, 0) == noErr);
+            CHECK_ROOM(room.amount > 0); // Disabling must not cut the wet signal abruptly.
+            for (unsigned b = 0; b < (unsigned)ceil((rate + room.tailFrames) / 512); b++) {
+                for (unsigned i = 0; i < 1024; i++) samples[i] = -.12f;
+                CHECK_ROOM(nativeEffectProcess(&room, &list, 512, 0) == noErr);
+            }
+            CHECK_ROOM(!room.rendering && room.amount == 0 && room.time == 0);
+            for (unsigned i = 0; i < 1024; i++) CHECK_ROOM(samples[i] == -.12f);
+            for (unsigned b = 0; b < (unsigned)ceil(rate / 512); b++) {
+                memset(samples, 0, sizeof(samples));
+                CHECK_ROOM(nativeEffectProcess(&room, &list, 512, kind == NativeEffectPitch ? -5 : .7f) == noErr);
+                for (unsigned i = 0; i < 1024; i++) CHECK_ROOM(isfinite(samples[i]) && fabsf(samples[i]) < 1e-6);
+            }
+            for (unsigned b = 0; b < (unsigned)ceil((rate + room.tailFrames) / 512); b++) {
+                memset(samples, 0, sizeof(samples));
+                CHECK_ROOM(nativeEffectProcess(&room, &list, 512, 0) == noErr);
+            }
+        }
+        nativeEffectDestroy(&room);
+    }
+    printf("Effects %.0f Hz: idle bypass, fades, pitch warmup, and stale-tail reset passed.\n", rate);
+    return 0;
+}
 int nativeEffectTests(void) {
     double rates[] = {44100, 48000, 96000};
     for (unsigned r = 0; r < 3; r++) {
+        if (bypassTests(rates[r])) return 1;
         NativeEffect room = {0};
         CHECK_ROOM(nativeEffectInit(&room, rates[r], NativeEffectReverb) == noErr);
         float samples[1024];

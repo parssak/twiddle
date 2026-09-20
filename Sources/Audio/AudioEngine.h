@@ -5,7 +5,7 @@
 @interface AudioEngine : NSObject
 @property float target;
 @property BOOL tapeStop;
-@property float reverb, pitch, phaser;
+@property float reverb, pitch;
 @property (readonly) float peak;
 @property (readonly) unsigned callbacks;
 @property (readonly) BOOL running;

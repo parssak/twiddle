@@ -13,7 +13,7 @@ typedef struct {
     PerformanceEffects performance;
     NativeEffect reverbEffect, pitchEffect;
     _Atomic(bool) tapeStop;
-    _Atomic(float) reverb, pitch, phaser;
+    _Atomic(float) reverb, pitch;
     _Atomic(float) target, peak;
     _Atomic(unsigned) callbacks;
     _Atomic(bool) badLayout;
@@ -48,7 +48,6 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     }
     float target = atomic_load_explicit(&state->target, memory_order_relaxed), peak = 0;
     float reverb = atomic_load(&state->reverb);
-    float phaser = atomic_load(&state->phaser);
     bool tapeStop = atomic_load(&state->tapeStop);
     for (UInt32 i = 0; i < frames; i++) {
         float in[2];
@@ -57,7 +56,7 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
             in[ch] = ((const float *)b->mData)[i * b->mNumberChannels + (b->mNumberChannels == 2 ? ch : 0)];
             peak = fmaxf(peak, fabsf(in[ch]));
         }
-        performanceFrame(&state->performance, phaser, tapeStop, in);
+        performanceFrame(&state->performance, tapeStop, in);
         for (unsigned ch = 0; ch < 2; ch++) {
             AudioBuffer *b = &output->mBuffers[output->mNumberBuffers == 1 ? 0 : ch];
             ((float *)b->mData)[i * b->mNumberChannels + (b->mNumberChannels == 2 ? ch : 0)] = in[ch];
@@ -88,7 +87,7 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     if ((self = [super init])) {
         atomic_init(&_audio.target, 0);
         atomic_init(&_audio.tapeStop, false);
-        atomic_init(&_audio.reverb, 0); atomic_init(&_audio.pitch, 0); atomic_init(&_audio.phaser, 0);
+        atomic_init(&_audio.reverb, 0); atomic_init(&_audio.pitch, 0);
         atomic_init(&_audio.peak, 0);
         atomic_init(&_audio.callbacks, 0);
         atomic_init(&_audio.badLayout, false);
@@ -97,8 +96,6 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
 }
 - (BOOL)tapeStop { return atomic_load(&_audio.tapeStop); }
 - (void)setTapeStop:(BOOL)value { atomic_store(&_audio.tapeStop, value); }
-- (float)phaser { return atomic_load(&_audio.phaser); }
-- (void)setPhaser:(float)value { atomic_store(&_audio.phaser, audioUnitAmount(value)); }
 - (float)reverb { return atomic_load(&_audio.reverb); }
 - (void)setReverb:(float)v { atomic_store(&_audio.reverb, audioUnitAmount(v)); }
 - (float)pitch { return atomic_load(&_audio.pitch); }

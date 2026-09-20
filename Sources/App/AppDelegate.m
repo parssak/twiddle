@@ -29,7 +29,7 @@ static const NSPoint EffectKnobPositions[] = { {16, 36}, {136, 36} };
 
 @interface AppDelegate () <NSPopoverDelegate> {
     FilterControl _control;
-    unsigned _refreshTick;
+    NSTimeInterval _nextActivityRefresh, _nextMetadataRefresh;
     NSInteger _statusAngle;
     BOOL _suspended;
     BOOL _showSettingsAfterPopoverCloses;
@@ -215,8 +215,6 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [mainMenu addItem:applicationMenu];
     NSApp.mainMenu = mainMenu;
     [self buildPopover];
-    self.timer = [NSTimer timerWithTimeInterval:1.0 / 60 target:self selector:@selector(refresh:) userInfo:nil repeats:YES];
-    [NSRunLoop.mainRunLoop addTimer:self.timer forMode:NSRunLoopCommonModes];
     NSNotificationCenter *workspace = NSWorkspace.sharedWorkspace.notificationCenter;
     [workspace addObserver:self selector:@selector(suspend:) name:NSWorkspaceWillSleepNotification object:nil];
     [workspace addObserver:self selector:@selector(suspend:) name:NSWorkspaceSessionDidResignActiveNotification object:nil];
@@ -601,6 +599,19 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         mode = FooterModeFilter;
     }
     [self showFooterMode:mode];
+    [self updateRefreshTimer];
+}
+- (void)updateRefreshTimer {
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    BOOL transitioning = _control.from != _control.to && now < _control.started + _control.duration;
+    NSTimeInterval interval = transitioning || self.playbackActivity.monitoring ? 1.0 / 60 : .25;
+    if (!_suspended && self.timer.timeInterval == interval) return;
+    [self.timer invalidate];
+    self.timer = nil;
+    if (_suspended) return;
+    self.timer = [NSTimer timerWithTimeInterval:interval target:self selector:@selector(refresh:) userInfo:nil repeats:YES];
+    self.timer.tolerance = interval * .1;
+    [NSRunLoop.mainRunLoop addTimer:self.timer forMode:NSRunLoopCommonModes];
 }
 - (void)resetKnob:(id)sender {
     self.effectReadout = nil;
@@ -774,10 +785,12 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [self updateControl];
 }
 - (void)refresh:(NSTimer *)timer {
-    controlSetTrigger(&_control, PresetTriggerPlayback, !_suspended && self.engine.running && self.playbackActivity.audible, NSProcessInfo.processInfo.systemUptime);
+    if (_suspended) return;
+    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+    controlSetTrigger(&_control, PresetTriggerPlayback, self.engine.running && self.playbackActivity.audible, now);
     [self updateControl];
-    _refreshTick++;
-    if (_refreshTick % 15 == 0) {
+    if (now >= _nextActivityRefresh) {
+        _nextActivityRefresh = now + .25;
         [self updateAutomaticTriggers];
         if (self.engine.running && ![self.engine checkRoute]) {
             [self.playbackActivity stop];
@@ -785,8 +798,11 @@ static NSImage *knobStatusImage(NSInteger degrees) {
             if (!_suspended) [self start];
         }
     }
-    if (_refreshTick % 60 == 0 && self.popover.shown) [self refreshNowPlaying];
-    if (_refreshTick % 60 == 0) [self refreshShortcutAccess];
+    if (now >= _nextMetadataRefresh) {
+        _nextMetadataRefresh = now + 1;
+        if (self.popover.shown) [self refreshNowPlaying];
+        [self refreshShortcutAccess];
+    }
 }
 - (void)suspend:(NSNotification *)notification {
     _suspended = YES;

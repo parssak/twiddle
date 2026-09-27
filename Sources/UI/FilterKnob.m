@@ -143,7 +143,9 @@ static CGFloat stableNoise(NSInteger index, NSInteger channel) {
 - (void)scrollWheel:(NSEvent *)event {
     double step = event.hasPreciseScrollingDeltas ? .003 : .03;
     if (event.modifierFlags & NSEventModifierFlagShift) step *= .1;
-    [self changeValue:self.doubleValue + event.scrollingDeltaY * step];
+    double delta = event.scrollingDeltaY;
+    if (event.isDirectionInvertedFromDevice) delta = -delta;
+    [self changeValue:self.doubleValue + delta * step];
 }
 - (void)keyDown:(NSEvent *)event {
     double step = (event.modifierFlags & NSEventModifierFlagShift) ? .005 : .025;

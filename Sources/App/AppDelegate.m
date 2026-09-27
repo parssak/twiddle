@@ -6,6 +6,7 @@
 #import "EffectsTrayView.h"
 #import "EffectHoldButton.h"
 #import "SettingsController.h"
+#import "OnboardingController.h"
 #import "AudioProcessActivity.h"
 #import "PlaybackActivity.h"
 #import "SpotifyNowPlaying.h"
@@ -33,6 +34,7 @@ static const NSPoint EffectKnobPositions[] = { {16, 36}, {136, 36} };
     NSInteger _statusAngle;
     BOOL _suspended;
     BOOL _showSettingsAfterPopoverCloses;
+    BOOL _needsOnboarding;
     BOOL _closingFromStatusItem;
     NSTimeInterval _filterReadoutUntil;
     NSUInteger _footerTransition;
@@ -59,6 +61,7 @@ static const NSPoint EffectKnobPositions[] = { {16, 36}, {136, 36} };
 @property (copy) NSArray<NSString *> *targetBundles;
 @property (copy) NSString *shortcutTitle;
 @property SettingsController *settings;
+@property OnboardingController *onboarding;
 @property BOOL discoActive;
 @property TwiddleControlServer *controlServer;
 @property PlaybackActivity *playbackActivity;
@@ -99,16 +102,17 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 @implementation AppDelegate
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    // Register login once for new installs; never undo a user's later opt-out.
-    if (![defaults boolForKey:@"loginDefaultApplied"]) {
-        BOOL freshInstall = [defaults persistentDomainForName:NSBundle.mainBundle.bundleIdentifier].count == 0;
+    NSDictionary *saved = [defaults persistentDomainForName:NSBundle.mainBundle.bundleIdentifier] ?: @{};
+    NSNumber *onboardingComplete = saved[@"onboardingCompleted"];
+    BOOL returningInstall = saved[@"loginDefaultApplied"] || saved[@"targetBundles"] ||
+        saved[@"selectedBundle"] || saved[@"fnPreset"] || saved[@"holdShortcutTitle"];
+    _needsOnboarding = onboardingComplete ? !onboardingComplete.boolValue : !returningInstall;
+    // Existing installs keep their current permissions and login preference.
+    if (!onboardingComplete) [defaults setBool:!_needsOnboarding forKey:@"onboardingCompleted"];
+    if (!_needsOnboarding && ![defaults boolForKey:@"loginDefaultApplied"])
         [defaults setBool:YES forKey:@"loginDefaultApplied"];
-        if (freshInstall && SMAppService.mainAppService.status == SMAppServiceStatusNotRegistered) {
-            NSError *error = nil;
-            if (![SMAppService.mainAppService registerAndReturnError:&error])
-                NSLog(@"Could not enable Open at Login: %@", error.localizedDescription);
-        }
-    }
+    // Give hover help a deliberate dwell time (milliseconds), scoped to Twiddle.
+    [defaults setInteger:1500 forKey:@"NSInitialToolTipDelay"];
     [defaults registerDefaults:@{@"hapticsEnabled": @YES}];
     [defaults registerDefaults:@{@"microphoneScope": @"wispr"}];
     if (![defaults objectForKey:@"microphoneEnabled"]) {
@@ -135,12 +139,19 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     self.globalFilterHotkeys.performed = ^(GlobalFilterHotkeyAction action) {
         [weakSelf performGlobalFilterHotkey:action];
     };
-    if (![self.globalFilterHotkeys start]) NSLog(@"%@", self.globalFilterHotkeys.errorMessage);
+    // Ask for Accessibility only after the user chooses the optional shortcut step.
+    if (CGPreflightPostEventAccess() && ![self.globalFilterHotkeys start])
+        NSLog(@"%@", self.globalFilterHotkeys.errorMessage);
     if ([defaults objectForKey:@"holdShortcutKeyCode"]) {
         [self.shortcutMonitor setKeyCode:[defaults integerForKey:@"holdShortcutKeyCode"]
                         modifiers:(CGEventFlags)[defaults integerForKey:@"holdShortcutModifiers"]];
     }
     self.settings = [SettingsController new];
+    self.onboarding = [OnboardingController new];
+    self.onboarding.firstRun = _needsOnboarding;
+    self.onboarding.audioRequested = ^{ [weakSelf requestOnboardingAudio]; };
+    self.onboarding.shortcutsRequested = ^{ [weakSelf requestOnboardingShortcuts]; };
+    self.onboarding.finished = ^(BOOL openAtLogin) { [weakSelf finishOnboardingWithOpenAtLogin:openAtLogin]; };
     self.controlServer = [[TwiddleControlServer alloc] initWithPath:twiddleControlPath() handler:^NSDictionary *(NSDictionary *command) {
         return [weakSelf performCLICommand:command];
     }];
@@ -160,6 +171,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         if ([self statusItemHasMenuBarAnchor]) [self openMenuBarSettings:nil];
         else [self restoreMenuBarItemShowingPopover:NO];
     };
+    self.settings.setupRequested = ^{ [weakSelf showOnboarding]; };
     self.settings.presetChanged = ^(double value) {
         AppDelegate *self = weakSelf;
         if (!self) return;
@@ -220,7 +232,8 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [workspace addObserver:self selector:@selector(suspend:) name:NSWorkspaceSessionDidResignActiveNotification object:nil];
     [workspace addObserver:self selector:@selector(resume:) name:NSWorkspaceDidWakeNotification object:nil];
     [workspace addObserver:self selector:@selector(resume:) name:NSWorkspaceSessionDidBecomeActiveNotification object:nil];
-    [self start];
+    if (_needsOnboarding) [self showOnboarding];
+    else [self start];
     [self updateControl];
 }
 - (void)installStatusItem {
@@ -447,6 +460,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
 }
 - (void)statusClicked:(id)sender {
     if (NSApp.currentEvent.type == NSEventTypeRightMouseUp) { [self showMenu]; return; }
+    if (_needsOnboarding) { [self showOnboarding]; return; }
     if (self.popover.shown) {
         _closingFromStatusItem = YES;
         [self.popover performClose:nil];
@@ -459,6 +473,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     }
 }
 - (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)visible {
+    if (_needsOnboarding) { [self showOnboarding]; return YES; }
     if (![self statusItemHasMenuBarAnchor]) {
         [self restoreMenuBarItemShowingPopover:!self.stickyMode];
         return YES;
@@ -466,6 +481,57 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     if (!self.stickyMode && !self.popover.shown) dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(.15 * NSEC_PER_SEC)),
         dispatch_get_main_queue(), ^{ if (!self.stickyMode && !self.popover.shown) [self statusClicked:nil]; });
     return YES;
+}
+- (void)applicationDidBecomeActive:(NSNotification *)notification {
+    if (!self.onboarding.window.visible) return;
+    if ([self.onboarding consumeAudioSettingsOpened] && !self.engine.running && !_suspended)
+        [self requestOnboardingAudio];
+    if (CGPreflightPostEventAccess() && !self.globalFilterHotkeys.enabled)
+        [self.globalFilterHotkeys start];
+    self.onboarding.shortcutsReady = self.globalFilterHotkeys.enabled;
+    [self.onboarding refresh];
+}
+- (void)showOnboarding {
+    self.onboarding.firstRun = _needsOnboarding;
+    self.onboarding.audioReady = self.engine.running;
+    self.onboarding.shortcutsReady = self.globalFilterHotkeys.enabled;
+    [self.onboarding show];
+}
+- (void)showOnboarding:(id)sender { [self showOnboarding]; }
+- (void)requestOnboardingAudio {
+    if (!self.targetBundles.count) {
+        self.onboarding.audioReady = NO;
+        self.onboarding.audioError = @"Choose an app to filter in Settings first.";
+    } else {
+        self.onboarding.audioReady = [self.engine startWithBundles:[NSSet setWithArray:self.targetBundles] probe:NO];
+        self.onboarding.audioError = self.onboarding.audioReady ? nil : self.engine.errorMessage;
+        [self updateAutomaticTriggers];
+        [self updateControl];
+    }
+    [self.onboarding refresh];
+}
+- (void)requestOnboardingShortcuts {
+    if (![self.globalFilterHotkeys start]) NSLog(@"%@", self.globalFilterHotkeys.errorMessage);
+    self.onboarding.shortcutsReady = self.globalFilterHotkeys.enabled;
+    [self refreshShortcutAccess];
+    [self.onboarding refresh];
+}
+- (void)finishOnboardingWithOpenAtLogin:(BOOL)openAtLogin {
+    if (!_needsOnboarding) return;
+    _needsOnboarding = NO;
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    [defaults setBool:YES forKey:@"onboardingCompleted"];
+    [defaults setBool:YES forKey:@"loginDefaultApplied"];
+    SMAppService *login = SMAppService.mainAppService;
+    NSError *error = nil;
+    if (openAtLogin && login.status == SMAppServiceStatusNotRegistered) {
+        if (![login registerAndReturnError:&error])
+            NSLog(@"Could not enable Open at Login: %@", error.localizedDescription);
+    } else if (!openAtLogin && (login.status == SMAppServiceStatusEnabled ||
+                                login.status == SMAppServiceStatusRequiresApproval)) {
+        if (![login unregisterAndReturnError:&error])
+            NSLog(@"Could not disable Open at Login: %@", error.localizedDescription);
+    }
 }
 - (void)restoreMenuBarItemShowingPopover:(BOOL)showPopover {
     [self installStatusItem];
@@ -499,6 +565,8 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     NSMenu *menu = [NSMenu new];
     NSMenuItem *settings = [menu addItemWithTitle:@"Settings…" action:@selector(showSettings:) keyEquivalent:@","];
     settings.target = self;
+    NSMenuItem *setup = [menu addItemWithTitle:@"Permissions & Setup…" action:@selector(showOnboarding:) keyEquivalent:@""];
+    setup.target = self;
     [menu addItem:NSMenuItem.separatorItem];
     NSMenuItem *fn = [menu addItemWithTitle:[self.shortcutTitle stringByAppendingString:@" shortcut"] action:@selector(toggleShortcut:) keyEquivalent:@""];
     fn.target = self;
@@ -767,6 +835,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [self.settings showApps:nil];
 }
 - (void)start {
+    if (_needsOnboarding) return;
     if (!self.targetBundles.count) {
         [self.engine stop];
         [self updateAutomaticTriggers];

@@ -6,6 +6,7 @@
 @property (nonatomic) BOOL menuBarItemVisible;
 @property (copy) void (^presetChanged)(double value);
 @property (copy) void (^menuBarSettingsRequested)(void);
+@property (copy) void (^setupRequested)(void);
 @property (copy) void (^shortcutAccessRequested)(void);
 @property (copy) void (^microphoneChanged)(void);
 @property (copy) void (^discoChanged)(BOOL active);

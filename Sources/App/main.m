@@ -20,8 +20,6 @@ int main(int argc, const char *argv[]) {
             if (!ok) fprintf(stderr, "%s\n", probe.errorMessage.UTF8String);
             return ok ? 0 : 1;
         }
-        // Give hover help a deliberate dwell time (milliseconds), scoped to Twiddle.
-        [NSUserDefaults.standardUserDefaults setInteger:1500 forKey:@"NSInitialToolTipDelay"];
         NSApplication *app = NSApplication.sharedApplication;
         AppDelegate *delegate = [AppDelegate new];
         app.delegate = delegate;

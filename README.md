@@ -6,7 +6,7 @@ A little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or 
 
 **[Download Twiddle](https://github.com/parssak/twiddle/releases/latest)** · Apple Silicon · macOS 26+
 
-v0.8 adds Sticky Mode in Settings: only clicking the menu-bar icon opens or closes the panel.
+v0.9 adds a streamlined first-launch setup, more natural knob scrolling, and lower idle energy use.
 
 <img src="docs/screenshot.png" width="520" alt="Twiddle in the macOS menu bar, filtering Spotify with a brushed-metal knob">
 
@@ -14,7 +14,7 @@ v0.8 adds Sticky Mode in Settings: only clicking the menu-bar icon opens or clos
 
 Open the DMG, drag Twiddle into Applications, and launch it. The app is Developer ID-signed and the download is notarized by Apple.
 
-Allow system audio recording when macOS asks. Twiddle also asks for access to Spotify so it can show the current song in the popover and album artwork in disco mode. Allow Accessibility to use ⌥F10–F12 directly on a media-key top row; if you set a hold shortcut, enable Input Monitoring. For top-row shortcuts, General settings shows **Allow Accessibility…** when access is missing and opens the correct System Settings pane. Twiddle retries the listener after access is granted; **Retry Shortcuts** is available if the listener still fails. Other permission changes may require reopening Twiddle.
+On first launch, Twiddle shows a setup window. Choose **Allow** under System Audio to request the access required for filtering, then **Start Twiddle**. You can also set up optional Option-F10–F12 shortcuts and choose whether Twiddle opens at login. A custom hold shortcut asks for Input Monitoring when you configure it in Settings. Spotify song and artwork features ask for Automation when used. You can reopen **Permissions & Setup…** from General settings or the menu-bar icon's right-click menu. Some permission changes may require reopening Twiddle.
 
 ## Use
 
@@ -30,7 +30,7 @@ When Spotify is the first target app, the footer shows its current song. Adjusti
 
 ## Auto-apply and Settings
 
-Settings has General and Auto-apply pages. General contains Apps to Twiddle. Auto-apply starts with the filter preset, followed by separate microphone, hold-shortcut, and trigger-app cards. You can record or clear the hold shortcut (None by default) and choose audio apps in two grids. **Apps to Twiddle** selects which apps get filtered; **Apps that trigger Twiddle** holds the preset while any listed app is producing audio. Drag application bundles from Finder into either grid or use + Apps, and hover over an app and click it to remove it. Your previous default app becomes the initial target. Empty targets stop filtering; empty triggers disable playback automation. A shared level monitor releases the preset after 300 ms of silence, followed by a 180 ms fade; silent streams do not hold the preset. New installs enable Open at Login and trackpad haptics; either can be turned off in Settings. macOS may require approval for the login item.
+Settings has General and Auto-apply pages. General contains Apps to Twiddle. Auto-apply starts with the filter preset, followed by separate microphone, hold-shortcut, and trigger-app cards. You can record or clear the hold shortcut (None by default) and choose audio apps in two grids. **Apps to Twiddle** selects which apps get filtered; **Apps that trigger Twiddle** holds the preset while any listed app is producing audio. Drag application bundles from Finder into either grid or use + Apps, and hover over an app and click it to remove it. Your previous default app becomes the initial target. Empty targets stop filtering; empty triggers disable playback automation. A shared level monitor releases the preset after 300 ms of silence, followed by a 180 ms fade; silent streams do not hold the preset. On first launch, choose whether to enable Open at Login; trackpad haptics start enabled. macOS may require approval for the login item.
 
 The first Settings row opens macOS Menu Bar settings while the icon is present. If you drag the icon out of the menu bar, reopening Twiddle from Applications, Spotlight, or Raycast restores it; the same row becomes a **Restore Icon** button while it is missing. Twiddle falls back to System Settings only when macOS cannot place the restored item.
 

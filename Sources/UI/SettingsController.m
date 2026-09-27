@@ -49,7 +49,7 @@
         panel.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
         panel.toolbar = [[NSToolbar alloc] initWithIdentifier:@"TwiddleSettings"];
         panel.toolbarStyle = NSWindowToolbarStyleUnified;
-        panel.floatingPanel = YES;
+        panel.floatingPanel = NO;
         panel.backgroundColor = NSColor.windowBackgroundColor;
         panel.contentMinSize = NSMakeSize(688, 400);
         panel.hidesOnDeactivate = NO;
@@ -302,6 +302,12 @@
         CreditView *credit = [[CreditView alloc] initWithFrame:NSMakeRect(0, 122, 490, 24)];
         credit.autoresizingMask = NSViewWidthSizable;
         [generalPage addSubview:credit];
+        NSButton *setupButton = [NSButton buttonWithTitle:@"Permissions & Setup…" target:self action:@selector(requestSetup:)];
+        setupButton.frame = NSMakeRect(SettingsContentInset, 149, 177, 29);
+        setupButton.bezelStyle = NSBezelStyleRounded;
+        setupButton.controlSize = NSControlSizeSmall;
+        setupButton.accessibilityLabel = @"Open permissions and setup";
+        [generalPage addSubview:setupButton];
         panel.contentViewController = splitController;
         [panel setContentSize:NSMakeSize(688, 600)];
         NSInteger savedPage = [NSUserDefaults.standardUserDefaults integerForKey:@"settingsPage"];
@@ -415,6 +421,10 @@
 }
 - (void)requestShortcutAccess:(id)sender {
     if (self.shortcutAccessRequested) self.shortcutAccessRequested();
+}
+- (void)requestSetup:(id)sender {
+    [self cancelRecording];
+    if (self.setupRequested) self.setupRequested();
 }
 - (void)requestMenuBarSettings:(id)sender {
     [self cancelRecording];

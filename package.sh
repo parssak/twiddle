@@ -88,7 +88,9 @@ hdiutil create -volname Twiddle -srcfolder "$staging/contents" \
     -fs HFS+ -format UDZO "$staging/Twiddle.dmg"
 hdiutil verify "$staging/Twiddle.dmg"
 if $release; then
-    codesign --timestamp --sign "$TWIDDLE_SIGN_IDENTITY" "$staging/Twiddle.dmg"
+    dmg_sign=(codesign --timestamp --sign "$TWIDDLE_SIGN_IDENTITY")
+    if [[ -n "${TWIDDLE_SIGN_KEYCHAIN:-}" ]]; then dmg_sign+=(--keychain "$TWIDDLE_SIGN_KEYCHAIN"); fi
+    "${dmg_sign[@]}" "$staging/Twiddle.dmg"
     pending="${output%.dmg}.notarizing.dmg"
     [[ ! -e "$pending" ]] || { echo "A resumable notarization already exists: $pending" >&2; exit 1; }
     mv "$staging/Twiddle.dmg" "$pending"

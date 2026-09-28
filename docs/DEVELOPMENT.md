@@ -54,11 +54,13 @@ Then build, sign, and notarize:
 bash scripts/release.sh
 ```
 
-The wrapper unlocks the dedicated local signing keychain when its mode-600 password file exists. Otherwise, unlock the keychain in Terminal before running the wrapper. The release build enables hardened runtime, signs Sparkle from the inside out, submits the DMG to Apple, staples its ticket, and checks Gatekeeper. It uses the EdDSA key stored under the `com.parssa.twiddle` Keychain account, or its mode-600 release backup under Application Support for headless signing, to generate the signed `site/appcast.xml`. Output is `build/Twiddle-<version>-<architecture>.dmg`, with a SHA-256 checksum and notarization result alongside it. Builds target the host architecture.
+The wrapper uses the unlocked login Keychain by default; `TWIDDLE_SIGN_KEYCHAIN` can select another keychain, and `TWIDDLE_SIGN_KEYCHAIN_PASSWORD_FILE` can unlock it from a mode-600 file. The release build enables hardened runtime, signs Sparkle from the inside out, submits the DMG to Apple, staples its ticket, and checks Gatekeeper. It uses the EdDSA key stored under the `com.parssa.twiddle.v2` Keychain account, or its mode-600 release backup under Application Support for headless signing, to generate the signed `site/appcast-v2.xml`. Output is `build/Twiddle-<version>-<architecture>.dmg`, with a SHA-256 checksum and notarization result alongside it. Builds target the host architecture.
 
 Submission state is written before waiting on Apple. If the agent or terminal disconnects while Apple is processing the build, `bash scripts/release.sh --resume` continues the same submission instead of uploading and notarizing the DMG again. Override the wrapper defaults with the existing `TWIDDLE_SIGN_*` and `TWIDDLE_NOTARY_PROFILE` environment variables when moving the release process to another Mac.
 
 Publish the GitHub release before deploying `site/`, because the generated appcast points at the versioned GitHub DMG. Private signing material stays local; only `SUPublicEDKey` belongs in `Info.plist`.
+
+Twiddle 0.9.1 starts a new update feed because both the old Developer ID private key and the old Sparkle private key were lost. Keep `site/appcast.xml` for installations using the old public key. Existing installations need one manual download of 0.9.1; later versions use `appcast-v2.xml`. The new Sparkle key lives in the login Keychain and has a mode-600 backup at `~/Library/Application Support/Twiddle/ReleaseSigning/sparkle-ed25519-v2-private-key`. Keep a separate secure backup of that file and the Developer ID private key. Check that both backups exist before deleting or replacing a keychain.
 
 ## Source layout
 

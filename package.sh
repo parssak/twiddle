@@ -21,23 +21,25 @@ case "${1:-}" in
 esac
 
 generate_appcast() {
-    local output=$1 version=$2 appcast_dir sparkle_root sparkle_key_file notes
+    local output=$1 version=$2 appcast_dir sparkle_root sparkle_key_file notes appcast_name
     local -a appcast_key
+    local appcast="$PWD/site/appcast-v2.xml"
+    appcast_name=$(basename "$appcast")
     notes="$PWD/docs/releases/$version.md"
     [[ -f "$notes" ]] || { echo "Missing release notes: $notes" >&2; exit 1; }
     sparkle_root=$(bash scripts/prepare-sparkle.sh)
     appcast_dir=$(mktemp -d "$PWD/build/.appcast.XXXXXX")
     ditto "$output" "$appcast_dir/$(basename "$output")"
     cp "$notes" "$appcast_dir/$(basename "${output%.dmg}").md"
-    if [[ -f "$PWD/site/appcast.xml" ]]; then cp "$PWD/site/appcast.xml" "$appcast_dir/appcast.xml"; fi
-    sparkle_key_file=${TWIDDLE_SPARKLE_PRIVATE_KEY_FILE:-"$HOME/Library/Application Support/Twiddle/ReleaseSigning/sparkle-ed25519-private-key"}
-    appcast_key=(--account com.parssa.twiddle)
+    if [[ -f "$appcast" ]]; then cp "$appcast" "$appcast_dir/$appcast_name"; fi
+    sparkle_key_file=${TWIDDLE_SPARKLE_PRIVATE_KEY_FILE:-"$HOME/Library/Application Support/Twiddle/ReleaseSigning/sparkle-ed25519-v2-private-key"}
+    appcast_key=(--account com.parssa.twiddle.v2)
     if [[ -f "$sparkle_key_file" ]]; then appcast_key=(--ed-key-file "$sparkle_key_file"); fi
     "$sparkle_root/bin/generate_appcast" "${appcast_key[@]}" \
         --download-url-prefix "https://github.com/parssak/twiddle/releases/download/v$version/" \
         --link "https://twiddle.fun" --embed-release-notes --maximum-versions 3 --maximum-deltas 0 \
         "$appcast_dir"
-    cp "$appcast_dir/appcast.xml" "$PWD/site/appcast.xml"
+    cp "$appcast_dir/$appcast_name" "$appcast"
     rm -rf "$appcast_dir"
 }
 

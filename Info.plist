@@ -13,8 +13,8 @@
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>NSAudioCaptureUsageDescription</key><string>Twiddle filters your Mac audio live and plays it through your current output. No audio is saved or uploaded.</string>
     <key>NSAppleEventsUsageDescription</key><string>Twiddle reads the current song from Spotify to show it in the menu bar popover and disco mode.</string>
-    <key>SUFeedURL</key><string>https://twiddle.fun/appcast.xml</string>
-    <key>SUPublicEDKey</key><string>vEHK0+Agm8dFCzTJKJGy7bThVEJkP3bBiEQcTNlBLaM=</string>
+    <key>SUFeedURL</key><string>https://twiddle.fun/appcast-v2.xml</string>
+    <key>SUPublicEDKey</key><string>WtCujueKIR8/eSJQf2RLaOSl7xKZxqjSDY/J/fCZGcg=</string>
     <key>SUEnableAutomaticChecks</key><true/>
     <key>SUVerifyUpdateBeforeExtraction</key><true/>
     <key>SURequireSignedFeed</key><true/>

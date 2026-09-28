@@ -34,3 +34,4 @@ if [[ "$package_mode" == --release ]]; then
 fi
 
 bash package.sh "$package_mode"
+bash scripts/verify-release.sh

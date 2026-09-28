@@ -6,7 +6,7 @@ A little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or 
 
 **[Download Twiddle](https://github.com/parssak/twiddle/releases/latest)** · Apple Silicon · macOS 26+
 
-v0.9 adds a streamlined first-launch setup, more natural knob scrolling, and lower idle energy use.
+v0.9.1 restores the illustrated installer and improves audio capture recovery after output changes or sleep.
 
 <img src="docs/screenshot.png" width="520" alt="Twiddle in the macOS menu bar, filtering Spotify with a brushed-metal knob">
 
@@ -90,4 +90,4 @@ bash build.sh
 open build/Twiddle.app
 ```
 
-No dependencies to install. See [development notes](docs/DEVELOPMENT.md) for local installation, signing, and release packaging.
+No dependencies to install. See [development notes](docs/DEVELOPMENT.md) for local installation, signing, and release packaging. Agents should start with [AGENTS.md](AGENTS.md).

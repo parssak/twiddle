@@ -15,13 +15,16 @@ password_file=${TWIDDLE_SIGN_KEYCHAIN_PASSWORD_FILE:-"$HOME/Library/Application 
 
 if [[ "$package_mode" == --release ]]; then
     [[ -f "$TWIDDLE_SIGN_KEYCHAIN" ]] || { echo "Signing keychain not found: $TWIDDLE_SIGN_KEYCHAIN" >&2; exit 1; }
-    [[ -f "$password_file" ]] || { echo "Signing keychain password file not found: $password_file" >&2; exit 1; }
-    [[ "$(stat -f '%Lp' "$password_file")" == 600 ]] || {
-        echo "Signing keychain password file must have mode 600: $password_file" >&2
-        exit 1
-    }
-    signing_password=$(<"$password_file")
-    security unlock-keychain -p "$signing_password" "$TWIDDLE_SIGN_KEYCHAIN"
+    if [[ -f "$password_file" ]]; then
+        [[ "$(stat -f '%Lp' "$password_file")" == 600 ]] || {
+            echo "Signing keychain password file must have mode 600: $password_file" >&2
+            exit 1
+        }
+        signing_password=$(<"$password_file")
+        security unlock-keychain -p "$signing_password" "$TWIDDLE_SIGN_KEYCHAIN"
+    else
+        echo "No saved signing password; using the already-unlocked keychain: $TWIDDLE_SIGN_KEYCHAIN"
+    fi
 fi
 
 bash package.sh "$package_mode"

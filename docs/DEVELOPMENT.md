@@ -54,7 +54,7 @@ Then build, sign, and notarize:
 bash scripts/release.sh
 ```
 
-The wrapper unlocks the dedicated local signing keychain without exposing its password, then enables hardened runtime, signs Sparkle from the inside out, submits the DMG to Apple, staples its ticket, and checks Gatekeeper. It uses the EdDSA key stored under the `com.parssa.twiddle` Keychain account, or its mode-600 release backup under Application Support for headless signing, to generate the signed `site/appcast.xml`. Output is `build/Twiddle-<version>-<architecture>.dmg`, with a SHA-256 checksum and notarization result alongside it. Builds target the host architecture.
+The wrapper unlocks the dedicated local signing keychain when its mode-600 password file exists. Otherwise, unlock the keychain in Terminal before running the wrapper. The release build enables hardened runtime, signs Sparkle from the inside out, submits the DMG to Apple, staples its ticket, and checks Gatekeeper. It uses the EdDSA key stored under the `com.parssa.twiddle` Keychain account, or its mode-600 release backup under Application Support for headless signing, to generate the signed `site/appcast.xml`. Output is `build/Twiddle-<version>-<architecture>.dmg`, with a SHA-256 checksum and notarization result alongside it. Builds target the host architecture.
 
 Submission state is written before waiting on Apple. If the agent or terminal disconnects while Apple is processing the build, `bash scripts/release.sh --resume` continues the same submission instead of uploading and notarizing the DMG again. Override the wrapper defaults with the existing `TWIDDLE_SIGN_*` and `TWIDDLE_NOTARY_PROFILE` environment variables when moving the release process to another Mac.
 

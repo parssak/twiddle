@@ -2,40 +2,73 @@ const dial = document.querySelector('.dial');
 const arc = document.querySelector('.dial-arc');
 const ticks = document.querySelector('.dial-ticks');
 const readout = document.querySelector('.dial-readout');
-const panel = document.querySelector('.audio-flow');
+const panel = document.querySelector('.popover');
+const menuToggle = document.querySelector('.menu-twiddle');
+const popoverPosition = document.querySelector('.popover-position');
+const desktop = document.querySelector('.desktop');
+const menuTime = document.querySelector('.menu-time');
 let value = -35;
 let drag = null;
 
+function alignPopover() {
+  const desktopRect = desktop.getBoundingClientRect();
+  const iconRect = menuToggle.getBoundingClientRect();
+  desktop.style.setProperty('--anchor-right', `${desktopRect.right - (iconRect.left + iconRect.width / 2)}px`);
+}
+
+function updateMenuTime() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  }).formatToParts(new Date());
+  const part = type => parts.find(item => item.type === type)?.value || '';
+  menuTime.textContent = `${part('weekday')} ${part('month')} ${part('day')} ${part('hour')}:${part('minute')} ${part('dayPeriod')}`;
+  alignPopover();
+}
+updateMenuTime();
+new ResizeObserver(alignPopover).observe(desktop);
+new ResizeObserver(alignPopover).observe(document.querySelector('.menu-right'));
+setInterval(updateMenuTime, 30_000);
+
 function point(degrees, radius) {
   const angle = (degrees - 90) * Math.PI / 180;
-  return [120 + Math.cos(angle) * radius, 120 + Math.sin(angle) * radius];
+  return [110 + Math.cos(angle) * radius, 102 + Math.sin(angle) * radius];
 }
 
 for (let i = -10; i <= 10; i++) {
   const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  const start = point(i * 13.5, 109);
-  const end = point(i * 13.5, i === 0 ? 117 : 113);
+  const start = point(i * 13.5, 94);
+  const end = point(i * 13.5, i === 0 ? 102 : 98);
   ['x1', 'y1', 'x2', 'y2'].forEach((key, j) => line.setAttribute(key, [...start, ...end][j]));
   ticks.append(line);
 }
 
+function smoothstep(x) {
+  x = Math.max(0, Math.min(1, x));
+  return x * x * (3 - 2 * x);
+}
+
 function update(next) {
-  value = Math.max(-100, Math.min(100, Math.round(next)));
+  value = Math.max(-100, Math.min(100, Math.round(next * 10) / 10));
+  if (Math.abs(value) < 1.5) value = 0;
   const degrees = value * 1.35;
-  const end = point(degrees, 98);
+  const end = point(degrees, 85);
   dial.style.setProperty('--angle', `${degrees}deg`);
-  arc.setAttribute('d', value === 0 ? '' : `M120 22 A98 98 0 0 ${value > 0 ? 1 : 0} ${end.join(' ')}`);
-  panel.style.setProperty('--accent', value === 0 ? '#aaa' : '#ff8b34');
+  // AppKit's drawing coordinates point upward; CSS rotation uses screen coordinates.
+  dial.style.setProperty('--detail-angle', `${degrees}deg`);
+  arc.setAttribute('d', value === 0 ? '' : `M110 17 A85 85 0 0 ${value > 0 ? 1 : 0} ${end.join(' ')}`);
+  const colorAmount = smoothstep(Math.abs(value) / (20 / 135 * 100));
+  const accent = `rgb(${Math.round(140 + 111 * colorAmount)} ${Math.round(140 - 22 * colorAmount)} ${Math.round(140 - 140 * colorAmount)})`;
+  panel.style.setProperty('--accent', accent);
   [...ticks.children].forEach((tick, i) => {
     const tickValue = (i - 10) * 10;
     const swept = value !== 0 && (value < 0 ? tickValue <= 0 && tickValue >= value : tickValue >= 0 && tickValue <= value);
-    tick.style.stroke = swept ? '#ff8b34' : i === 10 ? '#ddd' : '#656565';
+    tick.style.stroke = swept ? accent : i === 10 ? '#fff' : '#ffffff79';
   });
   const amount = Math.abs(value) / 100;
   const frequency = Math.round(value < 0 ? 20000 * Math.pow(115 / 20000, amount) : 20 * Math.pow(10000 / 20, amount));
-  const label = value === 0 ? 'Bypass · Original audio' : `${value < 0 ? 'Low-pass' : 'High-pass'} · ${frequency.toLocaleString('en-US')} Hz`;
-  readout.textContent = value === 0 ? 'Original' : value < 0 ? 'Low-pass' : 'High-pass';
-  updateSpectrum(value);
+  const label = value === 0 ? 'Bypass' : `${value < 0 ? 'Low-pass' : 'High-pass'} · ${frequency.toLocaleString('en-US')} Hz`;
+  readout.textContent = label;
   updateAudio(value);
   dial.setAttribute('aria-valuenow', value);
   dial.setAttribute('aria-valuetext', label);
@@ -43,18 +76,19 @@ function update(next) {
 
 dial.addEventListener('pointerdown', event => {
   if (!event.isPrimary || event.button !== 0) return;
+  startDemo();
   dial.dataset.pointer = '';
   dial.focus({ preventScroll: true });
   dial.setPointerCapture(event.pointerId);
-  drag = { id: event.pointerId, x: event.clientX, y: event.clientY, value };
+  drag = { id: event.pointerId, y: event.clientY, value };
 });
 
 dial.addEventListener('pointermove', event => {
   if (drag && drag.id === event.pointerId) {
-    const delta = (event.clientX - drag.x) + (drag.y - event.clientY);
-    update(drag.value + delta * (event.shiftKey ? 0.15 : 0.6));
+    const scale = dial.getBoundingClientRect().height / 164;
+    const delta = (drag.y - event.clientY) / scale;
+    update(drag.value + delta * (event.shiftKey ? .1 : .8));
   }
-
 });
 
 dial.addEventListener('lostpointercapture', () => { drag = null; });
@@ -64,42 +98,38 @@ dial.addEventListener('pointerup', event => {
 dial.addEventListener('pointercancel', () => { drag = null; });
 dial.addEventListener('keydown', event => {
   delete dial.dataset.pointer;
-  const step = event.shiftKey ? 1 : 5;
+  const step = event.shiftKey ? .5 : 2.5;
   const values = { ArrowRight: value + step, ArrowUp: value + step, ArrowLeft: value - step, ArrowDown: value - step, Home: -100, End: 100, '0': 0 };
   if (!(event.key in values)) return;
   event.preventDefault();
+  startDemo();
   update(values[event.key]);
 });
 dial.addEventListener('dblclick', () => update(0));
+// A wheel scroll upward raises the value, matching an upward drag in the app.
+dial.addEventListener('wheel', event => {
+  event.preventDefault();
+  startDemo();
+  update(value - event.deltaY * (event.shiftKey ? .012 : .12));
+}, { passive: false });
 
-
-const spectrum = document.querySelector('.spectrum');
-const listen = document.querySelector('.listen');
-const listenLabel = document.querySelector('.listen-label');
-const bars = Array.from({ length: 27 }, (_, i) => {
-  const bar = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  bar.setAttribute('x1', 6 + i * 6.4);
-  bar.setAttribute('x2', 6 + i * 6.4);
-  spectrum.append(bar);
-  return bar;
+menuToggle.addEventListener('click', () => {
+  const open = menuToggle.getAttribute('aria-expanded') !== 'true';
+  menuToggle.setAttribute('aria-expanded', String(open));
+  popoverPosition.classList.toggle('is-closed', !open);
+  popoverPosition.inert = !open;
+  popoverPosition.setAttribute('aria-hidden', String(!open));
 });
+
+const listen = document.querySelector('.listen');
+const listenIcon = document.querySelector('.listen-icon');
+const demoPlayer = document.querySelector('.demo-player');
 let audio = null;
 let playing = false;
+let starting = null;
 
 function cutoff(position) {
   return position < 0 ? 20000 * Math.pow(115 / 20000, -position / 100) : 20 * Math.pow(500, position / 100);
-}
-
-function updateSpectrum(position) {
-  bars.forEach((bar, i) => {
-    const frequency = 40 * Math.pow(400, i / 26);
-    const ratio = position < 0 ? frequency / cutoff(position) : cutoff(position) / frequency;
-    const gain = position === 0 ? 1 : 1 / Math.sqrt(1 + Math.pow(ratio, 4));
-    const height = Math.max(2, (24 + 60 * Math.pow(Math.sin(i * 1.9 + 0.5), 2)) * gain);
-    bar.setAttribute('y1', 60 - height / 2);
-    bar.setAttribute('y2', 60 + height / 2);
-    bar.style.opacity = .25 + .75 * gain;
-  });
 }
 
 // An original eight-second musical loop, generated locally. No audio downloads.
@@ -151,27 +181,31 @@ function updateAudio(position) {
   audio.dry.gain.setTargetAtTime(position === 0 ? 1 : 0, now, .015);
 }
 
-listen.addEventListener('click', async () => {
-  listen.disabled = true;
-  try {
-    if (!audio) {
-      const context = new AudioContext();
-      const filter = context.createBiquadFilter();
-      filter.Q.value = Math.SQRT1_2;
-      const wet = context.createGain();
-      const dry = context.createGain();
-      const output = context.createGain();
-      output.gain.value = .65;
-      filter.connect(wet).connect(output);
-      dry.connect(output);
-      output.connect(context.destination);
-      audio = { context, filter, wet, dry, buffer: makeLoop(context), source: null };
-    }
-    if (playing) {
-      audio.source.stop();
-      await audio.context.suspend();
-      playing = false;
-    } else {
+function syncPlayer() {
+  listenIcon.textContent = playing ? 'Ⅱ' : '▶';
+  demoPlayer.classList.toggle('is-playing', playing);
+  listen.setAttribute('aria-label', playing ? 'Pause audio demo' : 'Play audio demo');
+  listen.setAttribute('aria-pressed', String(playing));
+}
+
+function startDemo() {
+  if (playing) return Promise.resolve();
+  if (starting) return starting;
+  starting = (async () => {
+    try {
+      if (!audio) {
+        const context = new AudioContext();
+        const filter = context.createBiquadFilter();
+        filter.Q.value = Math.SQRT1_2;
+        const wet = context.createGain();
+        const dry = context.createGain();
+        const output = context.createGain();
+        output.gain.value = .65;
+        filter.connect(wet).connect(output);
+        dry.connect(output);
+        output.connect(context.destination);
+        audio = { context, filter, wet, dry, buffer: makeLoop(context), source: null };
+      }
       await audio.context.resume();
       updateAudio(value);
       const source = audio.context.createBufferSource();
@@ -182,12 +216,25 @@ listen.addEventListener('click', async () => {
       source.start();
       audio.source = source;
       playing = true;
+      syncPlayer();
+    } catch {
+      listen.setAttribute('aria-label', 'Audio unavailable');
     }
-    listenLabel.textContent = playing ? 'Ⅱ Pause' : '▶ Play demo';
-    listen.setAttribute('aria-label', playing ? 'Pause audio demo' : 'Play audio demo');
-    listen.setAttribute('aria-pressed', String(playing));
-  } catch {
-    listenLabel.textContent = 'Audio unavailable';
+  })().finally(() => { starting = null; });
+  return starting;
+}
+
+listen.addEventListener('click', async () => {
+  if (starting) await starting;
+  listen.disabled = true;
+  try {
+    if (playing) {
+      audio.source.stop();
+      audio.source = null;
+      await audio.context.suspend();
+      playing = false;
+      syncPlayer();
+    } else await startDemo();
   } finally {
     listen.disabled = false;
   }
@@ -196,8 +243,6 @@ window.addEventListener('pagehide', () => {
   if (audio) audio.context.close();
   audio = null;
   playing = false;
-  listenLabel.textContent = '▶ Play demo';
-  listen.setAttribute('aria-label', 'Play audio demo');
-  listen.setAttribute('aria-pressed', 'false');
+  syncPlayer();
 });
 update(value);

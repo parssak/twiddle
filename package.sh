@@ -83,6 +83,8 @@ trap cleanup EXIT
 mkdir "$staging/contents"
 ditto "$app" "$staging/contents/Twiddle.app"
 ln -s /Applications "$staging/contents/Applications"
+cp "$PWD/Assets/DMG/.background.png" "$staging/contents/.background.png"
+cp "$PWD/Assets/DMG/.DS_Store" "$staging/contents/.DS_Store"
 codesign --verify --deep --strict "$staging/contents/Twiddle.app"
 hdiutil create -volname Twiddle -srcfolder "$staging/contents" \
     -fs HFS+ -format UDZO "$staging/Twiddle.dmg"

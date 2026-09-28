@@ -108,7 +108,13 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
 - (BOOL)check:(OSStatus)status operation:(NSString *)operation {
     if (status == noErr) return YES;
     [self stop];
-    self.errorMessage = [NSString stringWithFormat:@"%@ failed (%d).", operation, (int)status];
+    if ([operation isEqualToString:@"Start audio (permission required)"]) {
+        self.errorMessage = [NSString stringWithFormat:
+            @"Couldn’t start system audio (%d). Check Twiddle in System Settings → Privacy & Security → Screen & System Audio Recording. If access already appears enabled, remove Twiddle there, reopen it, and allow access again.",
+            (int)status];
+    } else {
+        self.errorMessage = [NSString stringWithFormat:@"%@ failed (%d).", operation, (int)status];
+    }
     NSLog(@"%@ failed: %d", operation, (int)status);
     return NO;
 }

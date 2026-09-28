@@ -522,6 +522,8 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     [defaults setBool:YES forKey:@"onboardingCompleted"];
     [defaults setBool:YES forKey:@"loginDefaultApplied"];
+    // The route can stop between the successful permission check and Start.
+    if (!self.engine.running) [self start];
     SMAppService *login = SMAppService.mainAppService;
     NSError *error = nil;
     if (openAtLogin && login.status == SMAppServiceStatusNotRegistered) {
@@ -808,7 +810,9 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         @"autoApplyActive":@(_control.held), @"automationSuppressed":@(_control.suppressTriggers),
         @"disco":@(self.discoActive), @"targetApps":self.targetBundles ?: @[],
         @"triggerApps":[NSUserDefaults.standardUserDefaults stringArrayForKey:@"triggerBundles"] ?: @[],
-        @"audioError":self.engine.errorMessage ?: (id)NSNull.null};
+        @"audioError":self.engine.errorMessage ?: (id)NSNull.null,
+        @"audioCallbacks":@(self.engine.callbacks), @"inputPeak":@(self.engine.peak),
+        @"outputDevice":self.engine.outputName ?: (id)NSNull.null};
 }
 - (void)shortcutHeld:(BOOL)held {
     if (held && !self.engine.running) return;
@@ -864,7 +868,8 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         if (self.engine.running && ![self.engine checkRoute]) {
             [self.playbackActivity stop];
             controlReset(&_control, NSProcessInfo.processInfo.systemUptime);
-            if (!_suspended) [self start];
+            if (_needsOnboarding) [self requestOnboardingAudio];
+            else [self start];
         }
     }
     if (now >= _nextMetadataRefresh) {
@@ -884,7 +889,8 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     if (!_suspended) return;
     _suspended = NO;
     if (![NSUserDefaults.standardUserDefaults boolForKey:@"fnDisabled"]) [self.shortcutMonitor enableRequestingPermission:NO];
-    [self start];
+    if (_needsOnboarding && self.onboarding.audioReady) [self requestOnboardingAudio];
+    else [self start];
 }
 - (void)applicationWillTerminate:(NSNotification *)notification {
     [self.controlServer stop];

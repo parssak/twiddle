@@ -54,7 +54,7 @@ Then build, sign, and notarize:
 bash scripts/release.sh
 ```
 
-Run `bash scripts/setup-release-keychain.sh` once after placing the replacement Developer ID private key and certificate in `~/Library/Application Support/Twiddle/ReleaseSigning/`. It creates a dedicated keychain and a mode-600 password file there, then grants `codesign` access to the key. The wrapper unlocks that keychain on each release; `TWIDDLE_SIGN_KEYCHAIN` and `TWIDDLE_SIGN_KEYCHAIN_PASSWORD_FILE` can select another pair. The release build enables hardened runtime, signs Sparkle from the inside out, submits the DMG to Apple, staples its ticket, and checks Gatekeeper. It uses the EdDSA key stored under the `com.parssa.twiddle.v2` Keychain account, or its mode-600 release backup under Application Support for headless signing, to generate the signed `site/appcast-v2.xml`. Output is `build/Twiddle-<version>-<architecture>.dmg`, with a SHA-256 checksum and notarization result alongside it. Builds target the host architecture.
+The release scripts use a dedicated keychain and private signing material stored outside this public repository. `scripts/setup-release-keychain.sh` can configure the keychain from an existing Developer ID private key and certificate; it cannot recover a lost key. `TWIDDLE_SIGN_KEYCHAIN` and `TWIDDLE_SIGN_KEYCHAIN_PASSWORD_FILE` can select a different keychain. The release build enables hardened runtime, signs Sparkle from the inside out, submits the DMG to Apple, staples its ticket, and checks Gatekeeper. It uses the EdDSA key in Keychain or an external private-key backup to generate the signed `site/appcast-v2.xml`. Output is `build/Twiddle-<version>-<architecture>.dmg`, with a SHA-256 checksum and notarization result alongside it. Builds target the host architecture.
 
 The wrapper runs `scripts/verify-release.sh` before returning success. Before publishing, also install the exact DMG and check live audio filtering and first-run permissions; native self-tests cannot establish that Spotify audio is captured on a user's Mac. Apple's [distribution guidance](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution) recommends testing from the actual disk image, preferably on a different Mac.
 
@@ -62,7 +62,7 @@ Submission state is written before waiting on Apple. If the agent or terminal di
 
 Publish the GitHub release before deploying `site/`, because the generated appcast points at the versioned GitHub DMG. Private signing material stays local; only `SUPublicEDKey` belongs in `Info.plist`.
 
-Twiddle 0.9.1 starts a new update feed because both the old Developer ID private key and the old Sparkle private key were lost. Keep `site/appcast.xml` for installations using the old public key. Existing installations need one manual download of 0.9.1; later versions use `appcast-v2.xml`. The new Sparkle key lives in the login Keychain and has a mode-600 backup at `~/Library/Application Support/Twiddle/ReleaseSigning/sparkle-ed25519-v2-private-key`. Keep a separate secure backup of that file and the Developer ID private key. Check that both backups exist before deleting or replacing a keychain.
+Twiddle 0.9.1 starts a new update feed after a signing-key change. Keep `site/appcast.xml` for installations using the old public key. Existing installations need one manual download of 0.9.1; later versions use `appcast-v2.xml`. Keep verified encrypted backups of both signing keys outside the release host; local copies are insufficient.
 
 ## Source layout
 

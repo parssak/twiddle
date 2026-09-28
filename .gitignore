@@ -1,3 +1,16 @@
 build/
 .DS_Store
 .vercel
+
+# Release credentials and local operator state must stay out of this public repo.
+.env
+.env.*
+!.env.example
+*.key
+*.p8
+*.p12
+*.pem
+*.cer
+*.certSigningRequest
+*.keychain-db
+*.local.md

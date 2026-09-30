@@ -48,6 +48,22 @@ static int controlTests(void) {
     CHECK(!audioProcessMatchesBundle(@"com.google.Chrome.helper", @"company.thebrowser.Browser"));
     CHECK(!audioProcessMatchesBundle(nil, @"company.thebrowser.Browser"));
     CHECK(!audioProcessMatchesBundle(@"company.thebrowser.browser.helper", @""));
+    // Spotify's main player and helper can take turns producing audio. The tap
+    // needs both exact identities, not just the app selected in Settings.
+    NSSet *spotify = [NSSet setWithObject:@"com.spotify.client"];
+    NSArray *spotifyProcesses = @[@"com.spotify.client", @"com.spotify.client.helper",
+        @"com.spotify.client.helper", @"com.spotify.clientother", @"com.apple.Music"];
+    CHECK(([audioCaptureBundleIDs(spotify, spotifyProcesses) isEqualToArray:
+        @[@"com.spotify.client", @"com.spotify.client.helper"]]));
+    CHECK(([audioCaptureBundleIDs(spotify, @[@"com.spotify.client.helper.audio"]) isEqualToArray:
+        @[@"com.spotify.client", @"com.spotify.client.helper.audio"]]));
+    CHECK(([audioCaptureBundleIDs(spotify, @[]) isEqualToArray:@[@"com.spotify.client"]]));
+    CHECK(audioCaptureBundleIDs([NSSet set], spotifyProcesses).count == 0);
+    NSSet *multipleApps = [NSSet setWithArray:@[@"com.spotify.client", @"company.thebrowser.Browser"]];
+    NSSet *expanded = [NSSet setWithArray:audioCaptureBundleIDs(multipleApps,
+        @[@"com.spotify.client.helper", @"company.thebrowser.browser.helper", @"com.apple.Music"])];
+    CHECK(([expanded isEqualToSet:[NSSet setWithArray:@[@"com.spotify.client", @"com.spotify.client.helper",
+        @"company.thebrowser.Browser", @"company.thebrowser.browser.helper"]]]));
     CHECK([[FilterKnob labelForValue:[FilterKnob defaultPresetValue]] isEqualToString:@"Low-pass · 1100 Hz"]);
     NSColor *filterColor = [FilterKnob.filterColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
     CHECK(fabs(filterColor.redComponent - .98245) < 1e-5);

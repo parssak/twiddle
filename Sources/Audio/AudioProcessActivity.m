@@ -9,15 +9,47 @@ BOOL audioProcessMatchesBundle(NSString *processBundle, NSString *appBundle) {
     return [process isEqualToString:app] || [process hasPrefix:[app stringByAppendingString:@"."]];
 }
 
-static BOOL processActive(NSString *scope, NSSet<NSString *> *bundles, NSMutableArray<NSNumber *> *outputs) {
-    if (bundles && !bundles.count) return NO;
+static NSData *audioProcessList(void) {
     AudioObjectPropertyAddress property = address(kAudioHardwarePropertyProcessObjectList, kAudioObjectPropertyScopeGlobal);
     UInt32 size = 0;
-    if (AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &property, 0, NULL, &size) || !size) return NO;
+    if (AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &property, 0, NULL, &size) || !size) return nil;
     NSMutableData *data = [NSMutableData dataWithLength:size];
-    if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &property, 0, NULL, &size, data.mutableBytes)) return NO;
+    if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &property, 0, NULL, &size, data.mutableBytes)) return nil;
+    data.length = size;
+    return data;
+}
+
+NSArray<NSString *> *audioCaptureBundleIDs(NSSet<NSString *> *bundles, NSArray<NSString *> *processBundles) {
+    NSMutableSet *identities = [bundles mutableCopy] ?: [NSMutableSet new];
+    for (NSString *processBundle in processBundles) {
+        for (NSString *bundle in bundles) {
+            if (audioProcessMatchesBundle(processBundle, bundle)) {
+                [identities addObject:processBundle];
+                break;
+            }
+        }
+    }
+    return [identities.allObjects sortedArrayUsingSelector:@selector(compare:)];
+}
+
+NSArray<NSString *> *captureBundleIDs(NSSet<NSString *> *bundles) {
+    NSData *data = audioProcessList();
     const AudioObjectID *processes = data.bytes;
-    for (NSUInteger i = 0; i < size / sizeof(AudioObjectID); i++) {
+    NSMutableArray *identities = [NSMutableArray new];
+    for (NSUInteger i = 0; i < data.length / sizeof(AudioObjectID); i++) {
+        pid_t pid = 0;
+        if (readProperty(processes[i], kAudioProcessPropertyPID, kAudioObjectPropertyScopeGlobal, sizeof(pid), &pid) || pid == getpid()) continue;
+        NSString *bundle = stringProperty(processes[i], kAudioProcessPropertyBundleID);
+        if (bundle.length && ![bundle isEqualToString:NSBundle.mainBundle.bundleIdentifier]) [identities addObject:bundle];
+    }
+    return audioCaptureBundleIDs(bundles, identities);
+}
+
+static BOOL processActive(NSString *scope, NSSet<NSString *> *bundles, NSMutableArray<NSNumber *> *outputs) {
+    if (bundles && !bundles.count) return NO;
+    NSData *data = audioProcessList();
+    const AudioObjectID *processes = data.bytes;
+    for (NSUInteger i = 0; i < data.length / sizeof(AudioObjectID); i++) {
         pid_t pid = 0;
         if (readProperty(processes[i], kAudioProcessPropertyPID, kAudioObjectPropertyScopeGlobal, sizeof(pid), &pid)) continue;
         // Our process tap also counts as input; it must never hold its own preset.

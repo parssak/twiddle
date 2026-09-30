@@ -90,6 +90,8 @@ The shortcut, microphone activity, and app playback share the preset through sep
 
 Idle control refresh runs at 4 Hz with timer tolerance; filter transitions and an active playback-monitor tap use 60 Hz. Process/route checks and metadata refreshes use elapsed-time deadlines, so their cadence does not depend on animation ticks. The refresh timer stops during sleep or an inactive session. Unused audio units stop rendering after their bypass fade and silent tail drain; pitch keeps the dry signal until its reported latency has filled on activation. The main audio route stays open for responsive controls, so bypass still has Core Audio callback overhead.
 
+The main capture tap expands selected app identities to their dot-delimited audio helper bundle IDs, including helpers that are currently silent. Spotify can move playback between its main process and a helper between tracks. Route checks add newly discovered helpers to the existing tap without resetting the filter; known identities remain attached for process restoration until the selected apps change or capture stops.
+
 The app supports stereo float audio and rejects unsupported layouts. It restarts processing when the output changes and resumes after sleep. Bluetooth, physical sleep/wake, protected content, multichannel devices, and latency need broader testing.
 
 `TwiddleControl` owns command parsing and the private Unix-socket transport. `AppDelegate` applies validated commands through the existing filter and settings controls. The app executable enters CLI mode with `--cli`, or when launched through the `twiddle` symlink. See [CLI.md](CLI.md) for the command contract.

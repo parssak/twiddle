@@ -1,5 +1,6 @@
 #import "AudioEngine.h"
 #import "CoreAudioUtilities.h"
+#import "AudioProcessActivity.h"
 #import <CoreAudio/CATapDescription.h>
 #import <CoreAudio/AudioHardwareTapping.h>
 #include <stdatomic.h>
@@ -78,6 +79,8 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     AudioDeviceIOProcID _io;
     AudioState _audio;
     BOOL _running;
+    NSSet<NSString *> *_targetBundles;
+    CATapDescription *_tapDescription;
 }
 @property (readwrite, copy) NSString *outputName, *errorMessage;
 @end
@@ -182,14 +185,16 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
         }
         description.exclusive = NO;
         description.processes = @[];
-        description.bundleIDs = bundles.allObjects;
+        description.bundleIDs = captureBundleIDs(bundles);
         description.processRestoreEnabled = YES;
-        NSLog(@"Filtering app identities: %@", [[bundles.allObjects sortedArrayUsingSelector:@selector(compare:)] componentsJoinedByString:@", "]);
+        NSLog(@"Filtering app identities: %@", [description.bundleIDs componentsJoinedByString:@", "]);
     }
     description.name = @"Twiddle system audio";
     description.private = YES;
     description.muteBehavior = CATapMutedWhenTapped;
     if (![self check:AudioHardwareCreateProcessTap(description, &_tap) operation:@"Create audio tap"]) return NO;
+    _targetBundles = [bundles copy];
+    _tapDescription = description;
     AudioStreamBasicDescription format = {0};
     if (![self check:readProperty(_tap, kAudioTapPropertyFormat, kAudioObjectPropertyScopeGlobal, sizeof(format), &format) operation:@"Read tap format"]) return NO;
     atomic_store(&_audio.callbacks, 0);
@@ -233,6 +238,8 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     }
     if (_aggregate) { AudioHardwareDestroyAggregateDevice(_aggregate); _aggregate = 0; }
     if (_tap) { AudioHardwareDestroyProcessTap(_tap); _tap = 0; }
+    _targetBundles = nil;
+    _tapDescription = nil;
     performanceDestroy(&_audio.performance);
     atomic_store(&_audio.tapeStop, false);
     filterDestroy(&_audio.filter);
@@ -250,6 +257,22 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
         [self stop];
         self.errorMessage = @"Audio route changed or is unsupported. Normal playback restored; press Start to retry.";
         return NO;
+    }
+    if (_targetBundles) {
+        // Spotify can switch from its main process to a helper between tracks.
+        // Keep known identities for process restoration and attach new helpers
+        // without restarting the route or resetting the user's filter.
+        NSMutableSet *identities = [NSMutableSet setWithArray:_tapDescription.bundleIDs];
+        [identities addObjectsFromArray:captureBundleIDs(_targetBundles)];
+        NSArray *updated = [identities.allObjects sortedArrayUsingSelector:@selector(compare:)];
+        if (![_tapDescription.bundleIDs isEqualToArray:updated]) {
+            _tapDescription.bundleIDs = updated;
+            CATapDescription *description = _tapDescription;
+            AudioObjectPropertyAddress property = address(kAudioTapPropertyDescription, kAudioObjectPropertyScopeGlobal);
+            if (![self check:AudioObjectSetPropertyData(_tap, &property, 0, NULL, sizeof(description), &description)
+                operation:@"Update captured apps"]) return NO;
+            NSLog(@"Updated capture identities: %@", [updated componentsJoinedByString:@", "]);
+        }
     }
     return YES;
 }

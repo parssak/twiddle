@@ -1,7 +1,6 @@
 # Upload only the public website and its deployment configuration.
 /*
-!site/
-!site/**
+!site
 !vercel.json
 .env
 .env.*

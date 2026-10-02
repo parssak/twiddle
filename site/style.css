@@ -29,7 +29,7 @@ h1 { margin: 0; font-size: clamp(60px, 7vw, 92px); line-height: .96; font-weight
 .requirements { margin: 15px 0 0; color: #8d8d95; font-size: 12px; }
 .requirements span { margin: 0 6px; }
 
-.desktop { --anchor-right: 265px; position: relative; isolation: isolate; width: min(1200px, calc(100% - 64px)); height: 550px; margin: auto; overflow: hidden; border-radius: 29px; background: linear-gradient(#100e3626, #100e365c), url("assets/leopard-aurora.jpg") center 78% / cover no-repeat; box-shadow: 0 30px 60px #0006, inset 0 0 0 1px #ffffff2c; color: #fff; }
+.desktop { --anchor-right: 265px; position: relative; isolation: isolate; width: min(1200px, calc(100% - 64px)); height: 550px; margin: auto; overflow: hidden; border-radius: 29px; background: radial-gradient(ellipse at 16% 100%, #ee9bc77a, transparent 59%), radial-gradient(ellipse at 82% 6%, #8262b96e, transparent 60%), linear-gradient(136deg, #332458, #51416f 46%, #181e46); box-shadow: 0 30px 60px #0006, inset 0 0 0 1px #ffffff2c; color: #fff; }
 .menu-bar { position: absolute; inset: 0 0 auto; height: 46px; padding: 0 24px; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(90deg, #24203659, #88688830 53%, #24203659); border-bottom: 1px solid #ffffff36; backdrop-filter: blur(38px) saturate(1.55); -webkit-backdrop-filter: blur(38px) saturate(1.55); box-shadow: inset 0 1px #ffffff18; font-size: 13px; font-weight: 500; text-shadow: 0 1px 2px #130b5970; }
 .menu-left, .menu-right { display: flex; align-items: center; }
 .menu-left img { display: block; filter: invert(1); }

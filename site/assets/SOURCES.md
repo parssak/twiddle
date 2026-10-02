@@ -5,5 +5,5 @@
 
 Retrieved September 13, 2026. Marks belong to their respective owners.
 
-- `leopard-aurora.jpg`: resized from the [Mac OS X Leopard Aurora 6K wallpaper](https://github.com/LAYTAT/macOS-Wallpapers/blob/main/10-5-6k.jpg), an archive of Apple's desktop picture. Resized to 2000 × 1250 for the interactive preview.
+- The desktop preview's backdrop is an original CSS gradient in `style.css`.
 - `apple.svg`: Apple mark from [Simple Icons](https://github.com/simple-icons/simple-icons/blob/develop/icons/apple.svg), used in the simulated menu bar.

@@ -6,6 +6,24 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Twiddle</title>
         <item>
+            <title>0.9.3</title>
+            <pubDate>Thu, 01 Oct 2026 20:17:41 -0400</pubDate>
+            <link>https://twiddle.fun</link>
+            <sparkle:version>12</sparkle:version>
+            <sparkle:shortVersionString>0.9.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Twiddle 0.9.3
+
+- Automatically applies your saved preset while macOS `say` speaks, with no trigger-app selection required. This works with announcements from Codex, Terminal, and scripts.
+- Restores the previous amount after speech ends. Silent streams and speech written only to a file do not hold the preset.
+- Includes the Spotify audio-helper capture fix from 0.9.2.
+
+Requires macOS 26 or later on Apple silicon. Twiddle 0.9.1 users can update in the app. Users on 0.9 or earlier need one manual download to move to the current update feed.
+]]></description>
+            <enclosure url="https://github.com/parssak/twiddle/releases/download/v0.9.3/Twiddle-0.9.3-arm64.dmg" length="6319401" type="application/octet-stream" sparkle:edSignature="iYOw2JR+y/u1uXQd44ZpzNCMn3Ic5AOVNhDU1qdQq5o2GnlzPNp6SEvdmlG/HMXtvfXIPTeFEB1FcUgbuAZIDg=="/>
+        </item>
+        <item>
             <title>0.9.1</title>
             <pubDate>Sun, 27 Sep 2026 23:06:14 -0400</pubDate>
             <link>https://twiddle.fun</link>
@@ -25,6 +43,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: GLppqZzup3XytYeMLf8CM+Wd2bDZqDOPphp9NVj9KH78IG6zGJBUeM+iqLPY+/aTT3RNeca0YyZbV8V4QW6jDQ==
-length: 1651
+edSignature: 5zLx5HwgSrTi92fUovOwnV+YwLl7tC7tvHKwuLiS9NtRM/VlMAQBusMF7z17rKQLWDx55hXumCVYrs0IDhKiBw==
+length: 3005
 -->

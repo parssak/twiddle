@@ -6,7 +6,7 @@ A little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or 
 
 **[Download Twiddle](https://github.com/parssak/twiddle/releases/latest)** · Apple Silicon · macOS 26+
 
-v0.9.2 keeps filtering active when Spotify or another selected app moves audio to a helper process.
+v0.9.3 automatically applies your preset while macOS `say` speaks and keeps filtering active when selected apps move audio to a helper process.
 
 <img src="docs/screenshot.png" width="520" alt="Twiddle in the macOS menu bar, filtering Spotify with a brushed-metal knob">
 
@@ -30,7 +30,7 @@ When Spotify is the first target app, the footer shows its current song. Adjusti
 
 ## Auto-apply and Settings
 
-Settings has General and Auto-apply pages. General contains Apps to Twiddle. Auto-apply starts with the filter preset, followed by separate microphone, hold-shortcut, and trigger-app cards. You can record or clear the hold shortcut (None by default) and choose audio apps in two grids. **Apps to Twiddle** selects which apps get filtered; **Apps that trigger Twiddle** holds the preset while any listed app is producing audio. Drag application bundles from Finder into either grid or use + Apps, and hover over an app and click it to remove it. Your previous default app becomes the initial target. Empty targets stop filtering; empty triggers disable playback automation. A shared level monitor releases the preset after 300 ms of silence, followed by a 180 ms fade; silent streams do not hold the preset. On first launch, choose whether to enable Open at Login; trackpad haptics start enabled. macOS may require approval for the login item.
+Settings has General and Auto-apply pages. General contains Apps to Twiddle. Auto-apply starts with the filter preset, followed by separate microphone, hold-shortcut, and trigger-app cards. You can record or clear the hold shortcut (None by default) and choose audio apps in two grids. **Apps to Twiddle** selects which apps get filtered; **Apps that trigger Twiddle** holds the preset while any listed app is producing audio. Drag application bundles from Finder into either grid or use + Apps, and hover over an app and click it to remove it. Your previous default app becomes the initial target. Empty targets stop filtering; empty triggers disable selected-app playback automation. macOS `say` speech always triggers the saved preset while Twiddle is filtering, without adding an app. A shared level monitor releases the preset after 300 ms of silence, followed by a 180 ms fade; silent streams and speech written only to a file do not hold the preset. On first launch, choose whether to enable Open at Login; trackpad haptics start enabled. macOS may require approval for the login item.
 
 The first Settings row opens macOS Menu Bar settings while the icon is present. If you drag the icon out of the menu bar, reopening Twiddle from Applications, Spotlight, or Raycast restores it; the same row becomes a **Restore Icon** button while it is missing. Twiddle falls back to System Settings only when macOS cannot place the restored item.
 

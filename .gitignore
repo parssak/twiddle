@@ -9,8 +9,15 @@ build/
 *.key
 *.p8
 *.p12
+*.pfx
 *.pem
 *.cer
 *.certSigningRequest
 *.keychain-db
+*.keychain
 *.local.md
+OPERATOR*.md
+ReleaseSigning/
+release-keychain-password
+release-keychain-path
+sparkle-ed25519*-private-key

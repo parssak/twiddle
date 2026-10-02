@@ -23,8 +23,9 @@ cp "$sparkle_root/LICENSE" "$candidate/Contents/Resources/Sparkle-LICENSE.txt"
 mkdir -p "$candidate/Contents/Frameworks"
 ditto "$sparkle_root/Sparkle.framework" "$candidate/Contents/Frameworks/Sparkle.framework"
 if [[ -n "${TWIDDLE_SIGN_IDENTITY:-}" ]]; then
-    [[ "$TWIDDLE_SIGN_IDENTITY" == 'Developer ID Application: '* ]] || {
-        echo 'Release signing requires a Developer ID Application identity.' >&2
+    source scripts/release-identity.sh
+    [[ "$TWIDDLE_SIGN_IDENTITY" == "$release_identity" || "$TWIDDLE_SIGN_IDENTITY" == "$release_certificate_sha1" ]] || {
+        echo 'Release signing requires the pinned Developer ID Application identity.' >&2
         exit 1
     }
     sign_timestamp=${TWIDDLE_SIGN_TIMESTAMP:-secure}

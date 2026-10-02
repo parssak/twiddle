@@ -48,6 +48,15 @@ static int controlTests(void) {
     CHECK(!audioProcessMatchesBundle(@"com.google.Chrome.helper", @"company.thebrowser.Browser"));
     CHECK(!audioProcessMatchesBundle(nil, @"company.thebrowser.Browser"));
     CHECK(!audioProcessMatchesBundle(@"company.thebrowser.browser.helper", @""));
+    NSSet *noPlaybackApps = [NSSet set];
+    NSSet *codex = [NSSet setWithObject:@"com.openai.codex"];
+    CHECK(audioProcessMatchesPlaybackTrigger(nil, @"/usr/bin/say", noPlaybackApps));
+    CHECK(audioProcessMatchesPlaybackTrigger(@"", @"/usr/bin/say", codex));
+    CHECK(!audioProcessMatchesPlaybackTrigger(nil, nil, noPlaybackApps));
+    CHECK(!audioProcessMatchesPlaybackTrigger(nil, @"/usr/local/bin/say", codex));
+    CHECK(!audioProcessMatchesPlaybackTrigger(nil, @"/usr/bin/say-other", codex));
+    CHECK(!audioProcessMatchesPlaybackTrigger(@"com.apple.Music", @"/usr/bin/afplay", codex));
+    CHECK(audioProcessMatchesPlaybackTrigger(@"com.openai.codex.helper", nil, codex));
     // Spotify's main player and helper can take turns producing audio. The tap
     // needs both exact identities, not just the app selected in Settings.
     NSSet *spotify = [NSSet setWithObject:@"com.spotify.client"];

@@ -1,12 +1,21 @@
 #import "AudioProcessActivity.h"
 #import "CoreAudioUtilities.h"
 #include <unistd.h>
+#include <libproc.h>
 
 BOOL audioProcessMatchesBundle(NSString *processBundle, NSString *appBundle) {
     if (!processBundle.length || !appBundle.length) return NO;
     NSString *process = processBundle.lowercaseString;
     NSString *app = appBundle.lowercaseString;
     return [process isEqualToString:app] || [process hasPrefix:[app stringByAppendingString:@"."]];
+}
+
+BOOL audioProcessMatchesPlaybackTrigger(NSString *processBundle, NSString *executablePath,
+                                       NSSet<NSString *> *bundles) {
+    if ([executablePath isEqualToString:@"/usr/bin/say"]) return YES;
+    for (NSString *bundle in bundles)
+        if (audioProcessMatchesBundle(processBundle, bundle)) return YES;
+    return NO;
 }
 
 static NSData *audioProcessList(void) {
@@ -46,7 +55,6 @@ NSArray<NSString *> *captureBundleIDs(NSSet<NSString *> *bundles) {
 }
 
 static BOOL processActive(NSString *scope, NSSet<NSString *> *bundles, NSMutableArray<NSNumber *> *outputs) {
-    if (bundles && !bundles.count) return NO;
     NSData *data = audioProcessList();
     const AudioObjectID *processes = data.bytes;
     for (NSUInteger i = 0; i < data.length / sizeof(AudioObjectID); i++) {
@@ -57,16 +65,22 @@ static BOOL processActive(NSString *scope, NSSet<NSString *> *bundles, NSMutable
         NSString *bundle = stringProperty(processes[i], kAudioProcessPropertyBundleID);
         if ([bundle isEqualToString:NSBundle.mainBundle.bundleIdentifier]) continue;
         if (bundles) {
-            BOOL matches = NO;
-            for (NSString *candidate in bundles) {
-                if (audioProcessMatchesBundle(bundle, candidate)) { matches = YES; break; }
+            UInt32 active = 0;
+            if (readProperty(processes[i], kAudioProcessPropertyIsRunningOutput,
+                kAudioObjectPropertyScopeGlobal, sizeof(active), &active) || !active) continue;
+            if (!audioProcessMatchesPlaybackTrigger(bundle, nil, bundles)) {
+                // CLI speech has no app bundle. Resolve only active, unmatched
+                // outputs and require the system executable, not its name.
+                char path[PROC_PIDPATHINFO_MAXSIZE] = {0};
+                if (proc_pidpath(pid, path, sizeof(path)) <= 0 ||
+                    !audioProcessMatchesPlaybackTrigger(bundle, [NSString stringWithUTF8String:path], bundles)) continue;
             }
-            if (!matches) continue;
+            [outputs addObject:@(processes[i])];
+            continue;
         } else if (![scope isEqualToString:@"any"] &&
             !audioProcessMatchesBundle(bundle, @"com.electron.wispr-flow")) continue;
         UInt32 active = 0;
-        if (readProperty(processes[i], bundles ? kAudioProcessPropertyIsRunningOutput : kAudioProcessPropertyIsRunningInput, kAudioObjectPropertyScopeGlobal, sizeof(active), &active) || !active) continue;
-        if (bundles) { [outputs addObject:@(processes[i])]; continue; }
+        if (readProperty(processes[i], kAudioProcessPropertyIsRunningInput, kAudioObjectPropertyScopeGlobal, sizeof(active), &active) || !active) continue;
         // Background services can report active input without using any device.
         // Require a device assigned specifically to this process's input scope.
         AudioObjectPropertyAddress inputs = address(kAudioProcessPropertyDevices, kAudioObjectPropertyScopeInput);

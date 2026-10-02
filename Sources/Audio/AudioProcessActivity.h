@@ -4,8 +4,12 @@
 // Microphone scope is "any" or "wispr".
 BOOL microphoneActive(NSString *scope);
 
-// Active output streams (including silent streams), without capturing trigger audio.
+// Active output streams for selected apps and /usr/bin/say (including silent
+// streams), without capturing trigger audio. System speech needs no selection.
 NSArray<NSNumber *> *activeOutputProcesses(NSSet<NSString *> *bundles);
+
+BOOL audioProcessMatchesPlaybackTrigger(NSString *processBundle, NSString *executablePath,
+                                       NSSet<NSString *> *bundles);
 
 // Exact tap identities for selected apps and their existing audio helpers, even
 // while those helpers are silent. Core Audio does not expand bundle ID prefixes.

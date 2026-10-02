@@ -1,3 +1,15 @@
-build/
-.git/
-.vercel/
+# Upload only the public website and its deployment configuration.
+/*
+!site/
+!site/**
+!vercel.json
+.env
+.env.*
+*.key
+*.p8
+*.p12
+*.pfx
+*.pem
+*.cer
+*.keychain-db
+OPERATOR*.md

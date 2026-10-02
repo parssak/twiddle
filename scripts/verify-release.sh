@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source scripts/release-identity.sh
 
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Info.plist)
 appcast="$PWD/site/appcast-v2.xml"
@@ -19,7 +20,9 @@ mountpoint=$(mktemp -d "$PWD/build/.verify-release.XXXXXX")
 cleanup() {
     hdiutil detach "$mountpoint" -quiet >/dev/null 2>&1 || true
     rmdir "$mountpoint" 2>/dev/null || true
+    rm -rf "$certificate_dir"
 }
+certificate_dir=$(mktemp -d "$PWD/build/.verify-certificate.XXXXXX")
 trap cleanup EXIT
 hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" "$dmg" >/dev/null
 
@@ -27,6 +30,9 @@ hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" "$dmg" >/dev/null
 cmp "$PWD/Assets/DMG/.background.png" "$mountpoint/.background.png"
 cmp "$PWD/Assets/DMG/.DS_Store" "$mountpoint/.DS_Store"
 codesign --verify --deep --strict "$mountpoint/Twiddle.app"
+codesign -d --extract-certificates="$certificate_dir/cert-" "$mountpoint/Twiddle.app" 2>/dev/null
+fingerprint=$(openssl x509 -inform DER -in "$certificate_dir/cert-0" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':')
+[[ "$fingerprint" == "$release_certificate_sha1" ]] || { echo 'DMG app uses a different Developer ID certificate.' >&2; exit 1; }
 spctl --assess --type execute "$mountpoint/Twiddle.app"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$mountpoint/Twiddle.app/Contents/Info.plist")" == "$version" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$mountpoint/Twiddle.app/Contents/Info.plist")" == 'https://twiddle.fun/appcast-v2.xml' ]]
@@ -48,4 +54,6 @@ assert enclosure.attrib.get('url') == expected_url, 'Appcast download URL mismat
 assert int(enclosure.attrib.get('length', -1)) == os.path.getsize(dmg), 'Appcast size mismatch'
 assert enclosure.attrib.get(sparkle + 'edSignature'), 'Missing Sparkle update signature'
 PY
+cmp <(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' Info.plist) <(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$mountpoint/Twiddle.app/Contents/Info.plist")
+swift scripts/verify-sparkle.swift "$mountpoint/Twiddle.app/Contents/Info.plist" "$appcast" "$dmg"
 echo "Verified public-release candidate: $dmg"

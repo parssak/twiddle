@@ -1,5 +1,3 @@
-<img src="Assets/AppIcon.png" width="96" alt="Twiddle icon">
-
 <h1><img src="Assets/TwiddleWordmark.svg" width="221" alt="Twiddle"></h1>
 
 A little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or lows, or use a hold shortcut to drop into a preset and ease back when you let go.

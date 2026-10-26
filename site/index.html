@@ -4,122 +4,363 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0e0e12">
-  <meta name="description" content="Twiddle is a little DJ filter for your Mac. Shape the sound from your favorite apps with a tactile dial. Free for Apple Silicon Macs running macOS 26 or later.">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Twiddle is a little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or lows of the apps you choose. Free for Apple Silicon Macs running macOS 26 or later.">
   <meta property="og:title" content="Twiddle your Mac audio.">
-  <meta property="og:description" content="A little DJ filter for your Mac. Free to download.">
+  <meta property="og:description" content="A little DJ filter for your Mac’s menu bar. Free to download.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://twiddle.fun/">
   <link rel="canonical" href="https://twiddle.fun/">
   <link rel="icon" type="image/png" href="assets/icon.png">
-  <link rel="stylesheet" href="style.css?v=735ea416c8">
+  <link rel="apple-touch-icon" href="assets/icon-224.jpg">
   <link rel="preload" href="assets/geist.woff2" as="font" type="font/woff2" crossorigin>
-  <script src="knob.js?v=4fcb0a8eb3" defer></script>
-  <script src="disco.js?v=7f3189ba4a" defer></script>
+  <link rel="stylesheet" href="style.css?v=573580425f">
+  <script src="dial.js?v=10706b806b" defer></script>
+  <script src="disco.js?v=e87fa03687" defer></script>
+  <script src="demo.js?v=25b6af1486" defer></script>
+  <script src="features.js?v=83106ce2cf" defer></script>
   <title>Twiddle your Mac audio.</title>
 </head>
 <body>
-  <header class="header">
-    <a class="brand" href="./" aria-label="Twiddle home"><img src="assets/wordmark.svg" width="116" height="26" alt="Twiddle"><span class="disco-color" aria-hidden="true"></span></a>
-    <nav aria-label="Main navigation">
-      <a class="header-github" href="https://github.com/parssak/twiddle">GitHub</a>
-      <a class="header-download" href="https://github.com/parssak/twiddle/releases/download/v0.9.3/Twiddle-0.9.3-arm64.dmg">Download for Mac <span aria-hidden="true">↗</span></a>
-    </nav>
+  <header class="nav">
+    <div class="bar">
+      <a class="brand" href="#top" aria-label="Twiddle, back to top"><img src="assets/wordmark.svg" width="86" height="19" alt=""><span class="disco-color" aria-hidden="true"></span></a>
+      <nav class="links" aria-label="Main">
+        <a class="link" href="#features">Features</a>
+        <a class="link" href="#shortcuts">Shortcuts</a>
+        <a class="link" href="#install">Install</a>
+        <a class="link" href="https://github.com/parssak/twiddle">GitHub</a>
+        <a class="pill" href="https://github.com/parssak/twiddle/releases/download/v0.9.3/Twiddle-0.9.3-arm64.dmg">Download</a>
+      </nav>
+    </div>
   </header>
   <div class="disco" aria-hidden="true" hidden><canvas class="disco-beams"></canvas><canvas class="disco-sphere"></canvas></div>
-  <main>
+
+  <main id="top">
     <section class="hero" aria-labelledby="headline">
-      <div class="hero-copy">
-        <h1 id="headline">Twiddle your<br>Mac audio.</h1>
-        <a class="download" href="https://github.com/parssak/twiddle/releases/download/v0.9.3/Twiddle-0.9.3-arm64.dmg">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4"/></svg>
-          Download for Mac
-        </a>
-        <p class="requirements">Free forever <span>·</span> Apple Silicon <span>·</span> macOS 26+</p>
+      <img class="hero-icon" src="assets/icon-224.jpg" width="112" height="112" alt="">
+      <h1 id="headline">Twiddle your Mac audio.</h1>
+      <p class="lede">A little DJ filter for your Mac’s menu bar.<br> Turn the knob to cut the highs or lows of the apps you choose.</p>
+      <div class="cta">
+        <div class="actions">
+          <a class="button solid" href="https://github.com/parssak/twiddle/releases/download/v0.9.3/Twiddle-0.9.3-arm64.dmg">
+            <svg class="apple" viewBox="0 0 17 21" aria-hidden="true"><path d="M11.2 4.3c.6-.8 1-1.8.9-2.8-.9 0-2 .6-2.6 1.4-.6.7-1.1 1.7-.9 2.7 1 .1 2-.5 2.6-1.3zM12.1 5.8c-1.4-.1-2.7.8-3.3.8-.7 0-1.7-.8-2.9-.8C4.4 5.9 3 6.8 2.2 8.1c-1.6 2.7-.4 6.8 1.1 9 .8 1.1 1.7 2.3 2.8 2.3 1.1 0 1.6-.7 2.9-.7 1.4 0 1.8.7 2.9.7 1.2 0 2-1.1 2.7-2.2.9-1.3 1.2-2.5 1.2-2.6 0 0-2.4-.9-2.4-3.6 0-2.2 1.8-3.3 1.9-3.4-1-1.5-2.6-1.7-3.2-1.7z"/></svg>
+            Download for Mac
+          </a>
+          <a class="button raised" href="https://github.com/parssak/twiddle">
+            <img src="assets/github.svg" width="16" height="16" alt="">
+            View on GitHub
+          </a>
+        </div>
+        <p class="meta">Free · Version 0.9.3 · Apple Silicon · macOS 26 or later</p>
+        <a class="chip" href="https://github.com/parssak/twiddle/releases/tag/v0.9.3"><span class="chip-dot" aria-hidden="true"></span>New in 0.9.3: your preset follows macOS speech</a>
       </div>
+    </section>
 
-      <div class="desktop" role="group" aria-label="Interactive preview of Twiddle's Mac menu bar popover">
-        <div class="menu-bar">
-          <div class="menu-left" aria-hidden="true"><img src="assets/apple.svg" width="17" height="19" alt=""></div>
-          <div class="menu-right"><span class="menu-wifi" aria-hidden="true"><svg viewBox="0 0 18 16" width="18" height="16" fill="none"><path d="M1 5.5a12 12 0 0 1 16 0M3.7 8.6a8 8 0 0 1 10.6 0M6.5 11.7a4 4 0 0 1 5 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="14" r="1.2" fill="currentColor"/></svg></span><span class="menu-battery" aria-hidden="true"></span><button class="menu-twiddle" type="button" aria-label="Toggle Twiddle preview" aria-expanded="true"><span class="menu-knob"></span></button><span class="menu-time" aria-hidden="true">Sun Sep 27 8:12 PM</span></div>
-        </div>
+    <section class="showcase" aria-label="Demo">
+      <div class="frame" data-layout="wide" role="group" aria-label="Twiddle demo" aria-describedby="demo-description">
+        <div class="stage">
+          <div class="wallpaper" aria-hidden="true"></div>
 
-        <div class="demo-player">
-          <div class="demo-art" aria-hidden="true"><span></span></div>
-          <div class="demo-track"><strong>Twiddle demo</strong><span>An original little loop</span></div>
-          <button class="listen" type="button" aria-label="Play audio demo" aria-pressed="false"><span class="listen-icon" aria-hidden="true">▶</span></button>
-        </div>
-
-        <div class="popover-position">
-          <div class="popover" aria-label="Twiddle preview panel">
-            <svg class="popover-outline" viewBox="0 0 240 236" aria-hidden="true"><path d="M20 20 H102 C110 20 111 9 120 9 C129 9 130 20 138 20 H220 Q239 20 239 39 V215 Q239 235 220 235 H20 Q1 235 1 215 V39 Q1 20 20 20 Z"/></svg>
-            <div class="popover-controls">
-              <span class="panel-settings" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M10 2h4l.5 2.2 1.9.8 1.9-1.2 2.8 2.8-1.2 1.9.8 1.9L23 11v4l-2.3.5-.8 1.9 1.2 1.9-2.8 2.8-1.9-1.2-1.9.8L14 23h-4l-.5-2.3-1.9-.8-1.9 1.2-2.8-2.8 1.2-1.9-.8-1.9L1 15v-4l2.3-.5.8-1.9-1.2-1.9 2.8-2.8 1.9 1.2 1.9-.8L10 2Z"/></svg></span>
-              <div class="dial" role="slider" tabindex="0" aria-label="Twiddle filter" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="-35" aria-valuetext="Low-pass" aria-describedby="knob-help">
-                <svg class="dial-scale" viewBox="0 0 220 204" aria-hidden="true"><g class="dial-ticks"></g><path class="dial-track" d="M49.9 162.1 A85 85 0 1 1 170.1 162.1"/><path class="dial-arc"/></svg>
-                <div class="dial-body"><div class="dial-face"><div class="dial-detail"></div></div><div class="dial-pointer"></div></div>
-              </div>
-              <div class="panel-footer"><span class="source-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="15" fill="#1ed760"/><g fill="none" stroke="#102b18" stroke-linecap="round"><path d="M8 12c6-2 12-1 17 2" stroke-width="2.5"/><path d="M9 17c5-1.5 10-.6 14 1.5" stroke-width="2.2"/><path d="M10 22c4-1 8-.5 11 1" stroke-width="2"/></g></svg></span><output class="dial-readout">Low-pass · 3,288 Hz</output><span class="panel-fx" aria-hidden="true">FX</span></div>
+          <div class="menubar">
+            <div class="menu-left" aria-hidden="true">
+              <img src="assets/apple.svg" width="14" height="16" alt="">
+              <b>Finder</b><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span><span>Help</span>
+            </div>
+            <div class="menu-right">
+              <span class="menu-mic" aria-hidden="true"><svg viewBox="0 0 12 16"><rect x="3.5" y="1" width="5" height="9" rx="2.5"/><path d="M1.5 7.5a4.5 4.5 0 0 0 9 0M6 12v3"/></svg></span>
+              <button class="menu-twiddle" type="button" aria-label="Show or hide the Twiddle panel" aria-expanded="true"><span class="menu-knob"></span></button>
+              <span class="menu-wifi" aria-hidden="true"><svg viewBox="0 0 18 16" width="18" height="16" fill="none"><path d="M1 5.5a12 12 0 0 1 16 0M3.7 8.6a8 8 0 0 1 10.6 0M6.5 11.7a4 4 0 0 1 5 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="14" r="1.2" fill="currentColor"/></svg></span>
+              <span class="menu-battery" aria-hidden="true"></span>
+              <span class="menu-time" aria-hidden="true">Mon Oct 26 9:41 PM</span>
             </div>
           </div>
+
+          <div class="player" aria-hidden="true">
+            <div class="player-head">
+              <div class="player-art"></div>
+              <div class="player-track"><strong>Twiddle demo</strong><span>An original little loop</span></div>
+              <span class="player-state"><svg class="icon-play" viewBox="0 0 16 16"><path d="M4.5 3.2v9.6L12.8 8z"/></svg><svg class="icon-pause" viewBox="0 0 16 16"><path d="M4.5 3h2.4v10H4.5zM9.1 3h2.4v10H9.1z"/></svg></span>
+            </div>
+            <div class="player-bars"></div>
+            <div class="player-time"><span class="player-elapsed">0:00</span><i><b></b></i><span>0:08</span></div>
+          </div>
+
+          <div class="hud hud-keys" aria-hidden="true">
+            <kbd data-key="option"><span>⌥</span><small>option</small></kbd>
+            <kbd data-key="f10"><svg viewBox="0 0 20 16"><path d="M2 6h3l4-3.5v11L5 10H2z"/><path class="stroke" d="M12.5 5.5l5 5m0-5-5 5"/></svg><small>F10</small></kbd>
+            <kbd data-key="f11"><svg viewBox="0 0 20 16"><path d="M2 6h3l4-3.5v11L5 10H2z"/><path class="stroke" d="M12 6a3 3 0 0 1 0 4"/></svg><small>F11</small></kbd>
+            <kbd data-key="f12"><svg viewBox="0 0 20 16"><path d="M2 6h3l4-3.5v11L5 10H2z"/><path class="stroke" d="M12 6a3 3 0 0 1 0 4M14.5 3.8a6.2 6.2 0 0 1 0 8.4"/></svg><small>F12</small></kbd>
+          </div>
+
+          <div class="hud hud-dictation" aria-hidden="true">
+            <span class="dictation-mic"><svg viewBox="0 0 12 16"><rect x="3.5" y="1" width="5" height="9" rx="2.5"/><path d="M1.5 7.5a4.5 4.5 0 0 0 9 0M6 12v3"/></svg></span>
+            <span class="dictation-wave"></span>
+            <span class="dictation-label">Listening</span>
+          </div>
+
+          <div class="popover-position">
+            <div class="popover">
+              <div class="popover-clip">
+                <div class="popover-controls">
+                  <span class="pop-settings" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M10 2h4l.5 2.2 1.9.8 1.9-1.2 2.8 2.8-1.2 1.9.8 1.9L23 11v4l-2.3.5-.8 1.9 1.2 1.9-2.8 2.8-1.9-1.2-1.9.8L14 23h-4l-.5-2.3-1.9-.8-1.9 1.2-2.8-2.8 1.2-1.9-.8-1.9L1 15v-4l2.3-.5.8-1.9-1.2-1.9 2.8-2.8 1.9 1.2 1.9-.8L10 2Z"/></svg></span>
+                  <div class="dial dial-main" data-dial role="slider" tabindex="0" aria-label="Filter" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Bypass" aria-describedby="dial-help"></div>
+                  <div class="pop-footer">
+                    <img class="source-icon" src="assets/apps/spotify.webp" width="28" height="28" alt="">
+                    <output class="dial-readout">Bypass</output>
+                    <button class="pop-fx" type="button" aria-expanded="false" aria-label="Effects">FX</button>
+                  </div>
+                </div>
+                <div class="fx-tray">
+                  <div class="fx-knob fx-reverb"><div class="dial dial-mini" data-dial data-mode="unipolar" role="slider" tabindex="-1" aria-label="Reverb" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div><span>Reverb</span></div>
+                  <div class="fx-knob fx-pitch"><div class="dial dial-mini" data-dial role="slider" tabindex="-1" aria-label="Pitch" aria-valuemin="-12" aria-valuemax="12" aria-valuenow="0"></div><span>Pitch</span></div>
+                  <button class="fx-button fx-stop" type="button" tabindex="-1" aria-label="Hold for tape stop"><svg viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1.6"/></svg></button>
+                  <button class="fx-button fx-disco" type="button" tabindex="-1" aria-label="Disco" aria-pressed="false"><svg viewBox="0 0 20 20"><path d="M8 2.5c.5 3.2 2 4.7 5.2 5.2-3.2.5-4.7 2-5.2 5.2-.5-3.2-2-4.7-5.2-5.2 3.2-.5 4.7-2 5.2-5.2zM15 11c.3 1.8 1.1 2.6 2.9 2.9-1.8.3-2.6 1.1-2.9 2.9-.3-1.8-1.1-2.6-2.9-2.9 1.8-.3 2.6-1.1 2.9-2.9zM15.2 1.8c.2 1 .6 1.4 1.6 1.6-1 .2-1.4.6-1.6 1.6-.2-1-.6-1.4-1.6-1.6 1-.2 1.4-.6 1.6-1.6z"/></svg></button>
+                </div>
+              </div>
+              <svg class="popover-outline" aria-hidden="true"><path/></svg>
+            </div>
+          </div>
+
+          <div class="stage-disco" aria-hidden="true">
+            <canvas class="stage-beams"></canvas><canvas class="stage-sphere"></canvas>
+            <div class="disco-playing"><div class="player-art"></div><div><strong>Twiddle demo</strong><span>An original little loop</span></div></div>
+          </div>
+
+          <div class="caption" aria-hidden="true"><span class="caption-text"></span></div>
+          <svg class="cursor" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2.5v17.2l4.3-4.1 2.7 6.3 3.1-1.3-2.7-6.2h5.9z"/></svg>
         </div>
-        <span id="knob-help" class="sr-only">Drag up or down, scroll, or use arrow keys to adjust. Double-click or press 0 to reset. Play the demo loop to hear the filter.</span>
+        <button class="listen glass" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3.2v9.6L12.8 8z"/></svg>Play with sound</button>
+      </div>
+      <p id="demo-description" class="sr-only">A scripted demo of Twiddle’s menu bar panel filtering an original music loop: turning the knob, the ⌥F10 to ⌥F12 shortcuts, auto-apply while dictating, the reverb, pitch and tape stop effects, and disco mode. Turn on sound to hear it.</p>
+      <span id="dial-help" class="sr-only">Drag up or down, scroll, or use the arrow keys to adjust. Hold Shift for finer control. Double-click or press 0 to reset.</span>
+      <div class="controls">
+        <button class="control-icon control-play" type="button" aria-label="Pause demo">
+          <svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3h2.4v10H4.5zM9.1 3h2.4v10H9.1z"/></svg>
+          <svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 3.2v9.6L12.8 8z"/></svg>
+        </button>
+        <button class="control-icon control-replay" type="button" aria-label="Replay demo"><svg class="stroke" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 8a4.8 4.8 0 1 0 1.5-3.5"/><path d="M3 2.6v2.6h2.6"/></svg></button>
+        <button class="control-sound" type="button" aria-pressed="false" aria-label="Turn on sound">
+          <svg class="stroke" viewBox="0 0 16 16" aria-hidden="true"><path class="fill" d="M2.5 6h2.2L8 3.3v9.4L4.7 10H2.5z"/><path class="sound-off" d="M10.6 6.1l3.4 3.8M14 6.1l-3.4 3.8"/><path class="sound-on" d="M10.5 5.8a3 3 0 0 1 0 4.4M12.6 3.9a5.8 5.8 0 0 1 0 8.2"/></svg>
+          Sound
+        </button>
+        <ol class="chapters">
+          <li><button type="button" aria-label="Chapter 1: Turn"><span class="track"><span class="fill"></span></span><span class="label"><span class="num">1</span>Turn</span></button></li>
+          <li><button type="button" aria-label="Chapter 2: Shortcuts"><span class="track"><span class="fill"></span></span><span class="label"><span class="num">2</span>Shortcuts</span></button></li>
+          <li><button type="button" aria-label="Chapter 3: Auto-apply"><span class="track"><span class="fill"></span></span><span class="label"><span class="num">3</span>Auto-apply</span></button></li>
+          <li><button type="button" aria-label="Chapter 4: Effects"><span class="track"><span class="fill"></span></span><span class="label"><span class="num">4</span>Effects</span></button></li>
+          <li><button type="button" aria-label="Chapter 5: Disco"><span class="track"><span class="fill"></span></span><span class="label"><span class="num">5</span>Disco</span></button></li>
+        </ol>
       </div>
     </section>
 
-    <section class="features" aria-label="Twiddle features">
-      <article class="feature">
-        <svg class="feature-art apps-art" viewBox="0 0 96 96" aria-hidden="true">
-          <g class="app-tile app-tile-one"><rect x="6" y="25" width="24" height="31" rx="6"/><circle cx="18" cy="37" r="3"/><path d="M12 47h12"/></g>
-          <g class="app-tile app-tile-two"><rect x="36" y="20" width="24" height="36" rx="6"/><path d="M42 44V32l12-3v12M42 44c-4 0-4 5 0 5s4-5 0-5Zm12-3c-4 0-4 5 0 5s4-5 0-5Z"/></g>
-          <g class="app-tile app-tile-three"><rect x="66" y="25" width="24" height="31" rx="6"/><path d="m75 34 9 6-9 6Z"/></g>
-          <path class="feature-accent app-signal" d="M10 70h76"/>
-        </svg>
-        <h2>Filter the apps you choose.</h2>
-      </article>
-      <article class="feature">
-        <svg class="feature-art filter-art" viewBox="0 0 96 96" aria-hidden="true">
-          <path d="M8 68h21c20 0 19-40 40-40h19"/><path d="M8 28h21c20 0 19 40 40 40h19"/>
-          <path class="feature-accent filter-sweep" d="M8 68h21c20 0 19-40 40-40h19"/>
-          <circle cx="48" cy="48" r="3" class="filter-point"/>
-        </svg>
-        <h2>Cut highs or lows live.</h2>
-      </article>
-      <article class="feature">
-        <svg class="feature-art haptics-art" viewBox="0 0 96 96" aria-hidden="true">
-          <circle class="haptic-pulse haptic-pulse-one" cx="48" cy="48" r="26"/><circle class="haptic-pulse haptic-pulse-two" cx="48" cy="48" r="36"/>
-          <circle cx="48" cy="48" r="17"/><path class="feature-accent" d="M48 34v14" stroke-linecap="round"/>
-        </svg>
-        <h2>Feel every turn.</h2>
-      </article>
-      <article class="feature">
-        <svg class="feature-art shortcuts-art" viewBox="0 0 96 96" aria-hidden="true">
-          <g class="shortcut-key"><rect x="8" y="31" width="34" height="34" rx="7"/><text x="25" y="54">⌥</text></g>
-          <g class="shortcut-key shortcut-key-active"><rect x="49" y="31" width="39" height="34" rx="7"/><text x="68.5" y="53">F10</text></g>
-        </svg>
-        <h2>Use keyboard shortcuts.</h2>
-      </article>
-      <article class="feature">
-        <svg class="feature-art automatic-art" viewBox="0 0 96 96" aria-hidden="true">
-          <path d="M73 30a32 32 0 1 0 7 27"/><path d="m70 21 5 11-11 4"/>
-          <circle cx="48" cy="48" r="17"/><path class="feature-accent auto-hand" d="M48 48V36" stroke-linecap="round"/><circle class="feature-accent-fill" cx="48" cy="48" r="3"/>
-        </svg>
-        <h2>Auto-apply your preset.</h2>
-      </article>
-      <article class="feature">
-        <svg class="feature-art local-art" viewBox="0 0 96 96" aria-hidden="true">
-          <rect x="15" y="19" width="66" height="48" rx="6"/><path d="M8 74h80M35 67l-3 7h32l-3-7"/>
-          <path class="feature-accent local-wave" d="M24 45h8l4-9 6 18 7-22 6 16 5-7 4 4h8" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <h2>Audio stays on your Mac.</h2>
-      </article>
+    <div id="features">
+      <section class="section" aria-labelledby="filter-title">
+        <h2 id="filter-title">The filter</h2>
+        <div class="cards">
+          <article class="card" data-visual="curve">
+            <div class="card-visual"><div class="fit"><div class="inner">
+              <svg class="curve" viewBox="0 0 506 304" aria-hidden="true">
+                <defs>
+                  <linearGradient id="curve-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fb7600" stop-opacity=".32"/><stop offset="1" stop-color="#fb7600" stop-opacity="0"/></linearGradient>
+                </defs>
+                <clipPath id="curve-clip"><rect x="30" y="40" width="452" height="232"/></clipPath>
+                <g class="curve-grid"></g>
+                <g clip-path="url(#curve-clip)"><path class="curve-area" fill="url(#curve-fill)"/><path class="curve-line"/></g>
+                <circle class="curve-dot" r="4.5"/>
+              </svg>
+              <div class="curve-readout"><span class="curve-type">Bypass</span><span class="curve-hz"></span></div>
+            </div></div></div>
+            <div class="caption-block">
+              <div class="heading"><h3>Cut the highs or lows</h3><button class="pause" type="button" aria-label="Pause the Cut the highs or lows animation" aria-pressed="false"></button></div>
+              <p>Turn left for a low-pass that rolls the music down to 115 Hz, right for a high-pass that thins it out, and center for the original sound. The filter glides smoothly from one setting to the next.</p>
+            </div>
+          </article>
+          <article class="card" data-visual="apps">
+            <div class="card-visual"><div class="fit"><div class="inner">
+              <div class="apps" aria-hidden="true">
+                <div class="apps-group">
+                  <div class="apps-title">Apps to Twiddle</div>
+                  <div class="apps-grid">
+                    <img class="app" src="assets/apps/spotify.webp" width="72" height="72" alt="">
+                    <img class="app" src="assets/apps/music.webp" width="72" height="72" alt="">
+                    <img class="app app-incoming" src="assets/apps/safari.webp" width="72" height="72" alt="">
+                    <span class="app app-add"><svg viewBox="0 0 32 32"><path d="M16 9v14M9 16h14"/></svg></span>
+                  </div>
+                </div>
+                <div class="apps-group">
+                  <div class="apps-title">Apps that trigger Twiddle</div>
+                  <div class="apps-grid">
+                    <img class="app" src="assets/apps/facetime.webp" width="72" height="72" alt="">
+                    <img class="app" src="assets/apps/zoom.webp" width="72" height="72" alt="">
+                    <span class="app app-add"><svg viewBox="0 0 32 32"><path d="M16 9v14M9 16h14"/></svg></span>
+                  </div>
+                </div>
+                <svg class="apps-cursor" viewBox="0 0 24 24"><path d="M5 2.5v17.2l4.3-4.1 2.7 6.3 3.1-1.3-2.7-6.2h5.9z"/></svg>
+              </div>
+            </div></div></div>
+            <div class="caption-block">
+              <div class="heading"><h3>Only the apps you pick</h3><button class="pause" type="button" aria-label="Pause the Only the apps you pick animation" aria-pressed="false"></button></div>
+              <p>Drag apps from Finder into Settings. Twiddle filters those and leaves everything else alone, and other apps you choose can hold your preset while they play.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="cue-title">
+        <h2 id="cue-title">On cue</h2>
+        <div class="cards">
+          <article class="card" data-visual="keys">
+            <div class="card-visual"><div class="fit"><div class="inner">
+              <div class="keys" aria-hidden="true">
+                <div class="keys-row">
+                  <kbd data-key="option"><span>⌥</span><small>option</small></kbd>
+                  <kbd data-key="f10"><svg viewBox="0 0 20 16"><path d="M2 6h3l4-3.5v11L5 10H2z"/><path class="stroke" d="M12.5 5.5l5 5m0-5-5 5"/></svg><small>F10</small></kbd>
+                  <kbd data-key="f11"><svg viewBox="0 0 20 16"><path d="M2 6h3l4-3.5v11L5 10H2z"/><path class="stroke" d="M12 6a3 3 0 0 1 0 4"/></svg><small>F11</small></kbd>
+                  <kbd data-key="f12"><svg viewBox="0 0 20 16"><path d="M2 6h3l4-3.5v11L5 10H2z"/><path class="stroke" d="M12 6a3 3 0 0 1 0 4M14.5 3.8a6.2 6.2 0 0 1 0 8.4"/></svg><small>F12</small></kbd>
+                </div>
+                <div class="keys-result">
+                  <div class="dial dial-card" data-dial></div>
+                  <div class="keys-readout"><span class="keys-action">Bypass</span><span class="keys-hz"></span></div>
+                </div>
+              </div>
+            </div></div></div>
+            <div class="caption-block">
+              <div class="heading"><h3>Your preset, one key away</h3><button class="pause" type="button" aria-label="Pause the Your preset, one key away animation" aria-pressed="false"></button></div>
+              <p>⌥F10 switches between the original sound and your preset from any app, and ⌥F11 and ⌥F12 step the filter down or up. Record a hold shortcut to dip into the preset only while you press it.</p>
+            </div>
+          </article>
+          <article class="card" data-visual="lanes">
+            <div class="card-visual"><div class="fit"><div class="inner">
+              <div class="lanes" aria-hidden="true">
+                <div class="lane" data-lane="mic"><span class="lane-name">Mic is on</span><span class="lane-track"></span></div>
+                <div class="lane" data-lane="say"><span class="lane-name">macOS speaks</span><span class="lane-track"></span></div>
+                <div class="lane" data-lane="app"><span class="lane-name">Trigger app plays</span><span class="lane-track"></span></div>
+                <div class="lane lane-result" data-lane="filter"><span class="lane-name">Twiddle</span><span class="lane-track"><svg class="lane-curve" preserveAspectRatio="none"><path class="lane-curve-area"/><path class="lane-curve-line"/></svg></span></div>
+                <span class="playhead"></span>
+              </div>
+            </div></div></div>
+            <div class="caption-block">
+              <div class="heading"><h3>Automatic when you talk</h3><button class="pause" type="button" aria-label="Pause the Automatic when you talk animation" aria-pressed="false"></button></div>
+              <p>Auto-apply holds your preset while Wispr Flow or any app is listening, while a trigger app plays sound, or while macOS <code>say</code> speaks. When they stop, the music eases back.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="extras-title">
+        <h2 id="extras-title">Extras</h2>
+        <div class="cards">
+          <article class="card" data-visual="fx">
+            <div class="card-visual"><div class="fit"><div class="inner">
+              <div class="fx-card" aria-hidden="true">
+                <div class="fx-tray">
+                  <div class="fx-knob fx-reverb"><div class="dial dial-mini" data-dial data-mode="unipolar"></div><span>Reverb</span></div>
+                  <div class="fx-knob fx-pitch"><div class="dial dial-mini" data-dial></div><span>Pitch</span></div>
+                  <span class="fx-button fx-stop"><svg viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1.6"/></svg></span>
+                  <span class="fx-button fx-disco"><svg viewBox="0 0 20 20"><path d="M8 2.5c.5 3.2 2 4.7 5.2 5.2-3.2.5-4.7 2-5.2 5.2-.5-3.2-2-4.7-5.2-5.2 3.2-.5 4.7-2 5.2-5.2zM15 11c.3 1.8 1.1 2.6 2.9 2.9-1.8.3-2.6 1.1-2.9 2.9-.3-1.8-1.1-2.6-2.9-2.9 1.8-.3 2.6-1.1 2.9-2.9zM15.2 1.8c.2 1 .6 1.4 1.6 1.6-1 .2-1.4.6-1.6 1.6-.2-1-.6-1.4-1.6-1.6 1-.2 1.4-.6 1.6-1.6z"/></svg></span>
+                </div>
+                <div class="fx-readout">Reverb 0%</div>
+              </div>
+            </div></div></div>
+            <div class="caption-block">
+              <div class="heading"><h3>Reverb, pitch and tape stop</h3><button class="pause" type="button" aria-label="Pause the Reverb, pitch and tape stop animation" aria-pressed="false"></button></div>
+              <p>Open FX for a reverb knob and pitch in semitone steps up to an octave either way. Hold the stop button to wind the music down, then let go to come back in.</p>
+            </div>
+          </article>
+          <article class="card" data-visual="haptics">
+            <div class="card-visual"><div class="fit"><div class="inner">
+              <div class="haptics" aria-hidden="true">
+                <div class="dial dial-card dial-large" data-dial></div>
+                <div class="trackpad"><span class="finger"></span><span class="ripple"></span><span class="ripple"></span></div>
+              </div>
+            </div></div></div>
+            <div class="caption-block">
+              <div class="heading"><h3>Feel every tick</h3><button class="pause" type="button" aria-label="Pause the Feel every tick animation" aria-pressed="false"></button></div>
+              <p>Light trackpad haptics mark each tick as you turn. On supported MacBooks, the brushed-metal knob catches the light as you tilt the lid.</p>
+            </div>
+          </article>
+          <article class="card" data-visual="disco">
+            <div class="card-visual"><div class="fit"><div class="inner">
+              <div class="disco-card" aria-hidden="true">
+                <div class="disco-card-wall"></div>
+                <canvas class="card-beams"></canvas><canvas class="card-sphere"></canvas>
+                <div class="disco-playing"><div class="player-art"></div><div><strong>Twiddle demo</strong><span>An original little loop</span></div></div>
+              </div>
+            </div></div></div>
+            <div class="caption-block">
+              <div class="heading"><h3>Disco mode</h3><button class="pause" type="button" aria-label="Pause the Disco mode animation" aria-pressed="false"></button></div>
+              <p>Sweep your pointer across the wordmark in Settings to drop the disco ball. Pull it to cycle the colors, including ones from your album art, or swipe over it with two fingers to spin it.</p>
+            </div>
+          </article>
+          <article class="card" data-visual="cli">
+            <div class="card-visual"><div class="fit"><div class="inner">
+              <div class="terminal" aria-hidden="true">
+                <div class="terminal-bar"><span class="lights"><i></i><i></i><i></i></span><span class="terminal-title">zsh</span></div>
+                <pre class="terminal-body"></pre>
+              </div>
+            </div></div></div>
+            <div class="caption-block">
+              <div class="heading"><h3>Made for scripts</h3><button class="pause" type="button" aria-label="Pause the Made for scripts animation" aria-pressed="false"></button></div>
+              <p>The <code>twiddle</code> command controls the running app from Terminal, scripts or agents, and answers in JSON. It talks over a private local socket and opens no network port.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <section id="shortcuts" class="section split" aria-labelledby="shortcuts-title">
+      <div class="intro">
+        <h2 id="shortcuts-title">Shortcuts</h2>
+        <p>The function-key shortcuts work from any app. With Accessibility access, you don’t need to hold Fn.</p>
+      </div>
+      <ul class="shortcuts">
+        <li><span class="keys-combo"><kbd class="primary">⌥</kbd><kbd class="primary">F10</kbd></span><span class="label">Switch to your preset and back</span></li>
+        <li><span class="keys-combo"><kbd>⌥</kbd><kbd>F11</kbd></span><span class="label">Step the filter down</span></li>
+        <li><span class="keys-combo"><kbd>⌥</kbd><kbd>F12</kbd></span><span class="label">Step the filter up</span></li>
+        <li><span class="keys-combo"><kbd>Your key</kbd></span><span class="label">Hold for your preset</span></li>
+        <li><span class="keys-combo"><kbd>Esc</kbd></span><span class="label">Leave disco mode</span></li>
+        <li><span class="keys-combo"><kbd>Drag</kbd><kbd>Scroll</kbd></span><span class="label">Turn the knob</span></li>
+        <li><span class="keys-combo"><kbd>⇧</kbd></span><span class="label">Turn it finely</span></li>
+        <li><span class="keys-combo"><kbd>Double-click</kbd></span><span class="label">Glide back to the original</span></li>
+        <li><span class="keys-combo"><kbd>FX</kbd></span><span class="label">Reverb, pitch, tape stop and disco</span></li>
+        <li><span class="keys-combo"><kbd>Right-click</kbd></span><span class="label">Settings and Quit, from the menu bar</span></li>
+      </ul>
     </section>
-    <div class="features-cta"><a class="download" href="https://github.com/parssak/twiddle/releases/download/v0.9.3/Twiddle-0.9.3-arm64.dmg">Download for Mac <span aria-hidden="true">↗</span></a></div>
+
+    <section id="install" class="section split" aria-labelledby="install-title">
+      <div class="intro">
+        <h2 id="install-title">Install</h2>
+        <p>Free, for Apple Silicon Macs running macOS 26 or later. Signed with Developer ID and notarized by Apple.</p>
+        <div class="actions">
+          <a class="button solid" href="https://github.com/parssak/twiddle/releases/download/v0.9.3/Twiddle-0.9.3-arm64.dmg">
+            <svg class="apple" viewBox="0 0 17 21" aria-hidden="true"><path d="M11.2 4.3c.6-.8 1-1.8.9-2.8-.9 0-2 .6-2.6 1.4-.6.7-1.1 1.7-.9 2.7 1 .1 2-.5 2.6-1.3zM12.1 5.8c-1.4-.1-2.7.8-3.3.8-.7 0-1.7-.8-2.9-.8C4.4 5.9 3 6.8 2.2 8.1c-1.6 2.7-.4 6.8 1.1 9 .8 1.1 1.7 2.3 2.8 2.3 1.1 0 1.6-.7 2.9-.7 1.4 0 1.8.7 2.9.7 1.2 0 2-1.1 2.7-2.2.9-1.3 1.2-2.5 1.2-2.6 0 0-2.4-.9-2.4-3.6 0-2.2 1.8-3.3 1.9-3.4-1-1.5-2.6-1.7-3.2-1.7z"/></svg>
+            Download for Mac
+          </a>
+          <a class="button raised" href="https://github.com/parssak/twiddle">
+            <img src="assets/github.svg" width="16" height="16" alt="">
+            View on GitHub
+          </a>
+        </div>
+      </div>
+      <ol class="steps">
+        <li><span class="num">1</span><div><strong>Drag Twiddle into Applications</strong><p>Open the DMG and launch Twiddle from Applications, Spotlight or Raycast.</p></div></li>
+        <li><span class="num">2</span><div><strong>Allow System Audio</strong><p>Choose Allow under System Audio, then Start Twiddle. No audio is saved or uploaded.</p></div></li>
+        <li><span class="num">3</span><div><strong>Turn the knob</strong><p>Click the knob in the menu bar, pick your apps, and twiddle. Updates install from inside the app.</p></div></li>
+      </ol>
+    </section>
   </main>
-  <footer>
-    <nav class="socials" aria-label="Social links">
-      <a href="https://x.com/ParssaKyanzadeh" aria-label="Parssa Kyanzadeh on X"><img src="assets/x.svg" width="22" height="22" alt=""></a>
-      <a href="https://github.com/parssak/twiddle" aria-label="Twiddle on GitHub"><img src="assets/github.svg" width="22" height="22" alt=""></a>
-    </nav>
+
+  <footer class="footer">
+    <div class="footer-bar">
+      <div class="footer-brand"><img src="assets/icon.png" width="20" height="20" alt=""><span>Twiddle</span></div>
+      <p>Made by <a href="https://x.com/ParssaKyanzadeh">Parssa Kyanzadeh</a>.</p>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="https://github.com/parssak/twiddle/releases">Releases</a>
+        <a class="footer-icon" href="https://x.com/ParssaKyanzadeh" aria-label="Parssa Kyanzadeh on X"><img src="assets/x.svg" width="15" height="15" alt=""></a>
+        <a class="footer-icon" href="https://github.com/parssak/twiddle" aria-label="Twiddle on GitHub"><img src="assets/github.svg" width="17" height="17" alt=""></a>
+      </nav>
+    </div>
     <div class="footer-wordmark" aria-hidden="true"></div>
   </footer>
 </body>

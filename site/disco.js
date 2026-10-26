@@ -1,6 +1,85 @@
 (() => {
+  // Renders disco.frag.glsl into a pair of canvases: soft screen-wide beams and a
+  // sharp mirrored ball. The page overlay, the demo and the disco card share it.
+  let shader = null;
+  function loadShader() {
+    shader ||= fetch('disco.frag.glsl').then(response => {
+      if (!response.ok) throw new Error('Shader unavailable');
+      return response.text();
+    });
+    return shader;
+  }
+
+  function createPass(element, fragment, onLost) {
+    const gl = element.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, powerPreference: 'low-power' });
+    if (!gl) throw new Error('WebGL unavailable');
+    const compile = (type, source) => {
+      const compiled = gl.createShader(type);
+      gl.shaderSource(compiled, source);
+      gl.compileShader(compiled);
+      if (!gl.getShaderParameter(compiled, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(compiled));
+      return compiled;
+    };
+    const vertex = compile(gl.VERTEX_SHADER, `#version 300 es
+    void main() {
+      vec2 positions[3] = vec2[3](vec2(-1.,-1.),vec2(3.,-1.),vec2(-1.,3.));
+      gl_Position=vec4(positions[gl_VertexID],0.,1.);
+    }`);
+    const pixel = compile(gl.FRAGMENT_SHADER, fragment);
+    const program = gl.createProgram();
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, pixel);
+    gl.linkProgram(program);
+    gl.deleteShader(vertex);
+    gl.deleteShader(pixel);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
+    gl.useProgram(program);
+    const uniforms = Object.fromEntries(['canvas', 'viewport', 'timing', 'resolution'].map(name => [name, gl.getUniformLocation(program, name)]));
+    element.addEventListener('webglcontextlost', onLost);
+    return { element, gl, uniforms };
+  }
+
+  async function createRenderer(beams, sphere) {
+    const fragment = await loadShader();
+    const renderer = { lost: false };
+    const passes = [beams, sphere].map(element => createPass(element, fragment, () => { renderer.lost = true; }));
+    // `width` × `height` is the virtual screen the ball hangs in. Each view is the
+    // part of that screen a canvas shows, in CSS pixels, with its pixel density.
+    renderer.layout = (width, height, views) => {
+      passes.forEach((pass, i) => {
+        const { x, y, w, h, scale } = views[i];
+        pass.element.width = Math.max(1, Math.round(w * scale));
+        pass.element.height = Math.max(1, Math.round(h * scale));
+        pass.element.style.width = `${w}px`;
+        pass.element.style.height = `${h}px`;
+        const { gl, uniforms } = pass;
+        gl.viewport(0, 0, pass.element.width, pass.element.height);
+        gl.uniform4f(uniforms.canvas, width, height, 1 / (scale * height), i);
+        gl.uniform4f(uniforms.viewport, x, y, w, h);
+        gl.uniform2f(uniforms.resolution, pass.element.width, pass.element.height);
+      });
+    };
+    // The sphere view used by the native overlay: centered at the top of the screen.
+    renderer.sphereView = (width, height, scale) => {
+      const w = Math.max(160, height * .16);
+      const h = Math.min(height, Math.max(180, height * .18));
+      return { x: (width - w) / 2, y: 0, w, h, scale };
+    };
+    renderer.draw = (seconds, deployment) => {
+      for (const { gl, uniforms } of passes) {
+        gl.uniform4f(uniforms.timing, seconds, deployment, 0, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+    };
+    return renderer;
+  }
+  window.TwiddleDisco = { createRenderer, loadShader };
+
+  // Sweep the pointer across every letter of the wordmark or headline to start disco mode.
   const brand = document.querySelector('.brand');
   const overlay = document.querySelector('.disco');
+  const heading = document.querySelector('h1');
+  if (!brand || !overlay || !heading) return;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const boundaries = [0, .119, .355, .411, .583, .755, .834, 1];
   const palette = ['#ff5366', '#ff963b', '#f4db58', '#66d588', '#65d4db', '#649aff', '#b88bff', '#ed81bf'];
@@ -8,10 +87,9 @@
     const letter = document.createElement('span');
     letter.style.left = `${left * 100}%`;
     letter.style.width = `${(boundaries[i + 1] - left) * 100}%`;
-    document.querySelector('.disco-color').append(letter);
+    brand.querySelector('.disco-color').append(letter);
     return letter;
   });
-  const heading = document.querySelector('h1');
   heading.classList.add('disco-heading');
   heading.setAttribute('aria-label', heading.innerText.replace(/\s+/g, ' '));
   const headingLetters = [];
@@ -80,80 +158,36 @@
       show();
     }
   }
-  let passes, initializing, active = false, frame = 0, deployment = 0;
+  let renderer, initializing, active = false, frame = 0, deployment = 0;
   let previous = 0, started = 0, lastColors = 0, unavailable = false;
 
-  function createPass(element, fragment) {
-    const gl = element.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, powerPreference: 'low-power' });
-    if (!gl) throw new Error('WebGL unavailable');
-    const compile = (type, source) => {
-      const shader = gl.createShader(type);
-      gl.shaderSource(shader, source);
-      gl.compileShader(shader);
-      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
-      return shader;
-    };
-    const vertex = compile(gl.VERTEX_SHADER, `#version 300 es
-    void main() {
-      vec2 positions[3] = vec2[3](vec2(-1.,-1.),vec2(3.,-1.),vec2(-1.,3.));
-      gl_Position=vec4(positions[gl_VertexID],0.,1.);
-    }`);
-    const pixel = compile(gl.FRAGMENT_SHADER, fragment);
-    const program = gl.createProgram();
-    gl.attachShader(program, vertex);
-    gl.attachShader(program, pixel);
-    gl.linkProgram(program);
-    gl.deleteShader(vertex);
-    gl.deleteShader(pixel);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program));
-    gl.useProgram(program);
-    const uniforms = Object.fromEntries(['canvas', 'viewport', 'timing', 'resolution'].map(name => [name, gl.getUniformLocation(program, name)]));
-    element.addEventListener('webglcontextlost', () => { unavailable = true; stop(); });
-    return { element, gl, uniforms };
-  }
-
   async function initialize() {
-    if (passes) return;
-    if (!initializing) initializing = (async () => {
-      const response = await fetch('disco.frag.glsl');
-      if (!response.ok) throw new Error('Shader unavailable');
-      const shader = await response.text();
-      passes = [createPass(overlay.querySelector('.disco-beams'), shader), createPass(overlay.querySelector('.disco-sphere'), shader)];
+    if (renderer) return;
+    initializing ||= createRenderer(overlay.querySelector('.disco-beams'), overlay.querySelector('.disco-sphere')).then(created => {
+      renderer = created;
       resize();
-    })();
+    });
     return initializing;
   }
 
   function resize() {
-    if (!passes) return;
+    if (!renderer) return;
     const width = innerWidth, height = innerHeight;
-    passes.forEach((pass, i) => {
-      const w = i ? Math.max(160, height * .16) : width;
-      const h = i ? Math.min(height, Math.max(180, height * .18)) : height;
-      // Match the native split: soft screen-wide beams, sharp mirrored tiles.
-      const scale = i ? Math.min(devicePixelRatio, 2) : Math.min(1, 600 / height);
-      pass.element.width = Math.round(w * scale);
-      pass.element.height = Math.round(h * scale);
-      pass.element.style.width = `${w}px`;
-      pass.element.style.height = `${h}px`;
-      const { gl, uniforms } = pass;
-      gl.viewport(0, 0, pass.element.width, pass.element.height);
-      gl.uniform4f(uniforms.canvas, width, height, 1 / (scale * height), i);
-      gl.uniform4f(uniforms.viewport, i ? (width - w) / 2 : 0, 0, w, h);
-      gl.uniform2f(uniforms.resolution, pass.element.width, pass.element.height);
-    });
+    // Match the native split: soft screen-wide beams, sharp mirrored tiles.
+    renderer.layout(width, height, [
+      { x: 0, y: 0, w: width, h: height, scale: Math.min(1, 600 / height) },
+      renderer.sphereView(width, height, Math.min(devicePixelRatio, 2)),
+    ]);
   }
 
   function paint(now) {
     frame = 0;
+    if (renderer.lost) { unavailable = true; stop(); return; }
     const elapsed = Math.min((now - previous) / 1000, .05);
     previous = now;
     deployment = Math.max(0, Math.min(1.12, deployment + (active ? elapsed : -elapsed)));
     if (!active && deployment === 0) { overlay.hidden = true; return; }
-    for (const { gl, uniforms } of passes) {
-      gl.uniform4f(uniforms.timing, (now - started) / 1000, deployment, 0, 0);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-    }
+    renderer.draw((now - started) / 1000, deployment);
     if (active && now - lastColors > 220) {
       lastColors = now;
       owner?.letters.forEach(letter => {

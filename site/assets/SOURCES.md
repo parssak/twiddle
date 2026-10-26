@@ -7,3 +7,4 @@ Retrieved September 13, 2026. Marks belong to their respective owners.
 
 - The desktop preview's backdrop is an original CSS gradient in `style.css`.
 - `apple.svg`: Apple mark from [Simple Icons](https://github.com/simple-icons/simple-icons/blob/develop/icons/apple.svg), used in the simulated menu bar.
+- `apps/*.webp`: the Spotify, Music, Safari, FaceTime and Zoom app icons, exported from the installed apps with `NSWorkspace` and converted to WebP. They illustrate app selection in Settings; the marks belong to their respective owners.

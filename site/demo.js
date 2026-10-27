@@ -15,6 +15,9 @@
   const stopButton = $('.fx-stop');
   const discoButton = $('.fx-disco');
   const readout = $('.dial-readout');
+  const filterLabel = $('.readout-filter');
+  const songLabel = $('.readout-song');
+  const songText = songLabel.firstElementChild;
   const menuToggle = $('.menu-twiddle');
   const menuKnob = $('.menu-knob');
   const menuTime = $('.menu-time');
@@ -37,11 +40,13 @@
   const LAYOUTS = { wide: { width: 1200, height: 720 }, compact: { width: 640, height: 900 } };
   const SCALE = 1.5;
   const PRESET = -60;
-  const LOOP = 8;
+  const BEAT = 60 / 112;
+  const LOOP = 16 * BEAT;
   let layout = 'wide';
   let stageScale = 1;
   let geometry = { popLeft: 0, popTop: 36, arrowX: 120 };
   let anchors = {};
+  let songOverflow = 0;
 
   // Bars span 45 Hz to 14 kHz on a log scale.
   const BAR_COUNT = 32;
@@ -88,6 +93,9 @@
     };
     chapters = SCRIPT.map(build => build(anchors));
     chapters.forEach((c, i) => { chapterButtons[i].parentElement.style.flexGrow = c.duration; });
+    songOverflow = Math.max(0, songText.offsetWidth - songLabel.clientWidth);
+    setClass(songLabel, 'is-overflowing', songOverflow > 0);
+    shown.offset = null;
     lastShape = -1;
     layoutDisco();
     render();
@@ -349,10 +357,13 @@
     const label = T.label(knob);
     if (shown.label !== label) {
       shown.label = label;
-      readout.textContent = label;
+      // Keep the last filter on screen while it fades out at center.
+      if (knob !== 0) filterLabel.textContent = label;
+      filterUntil = knob !== 0 ? clock + 1000 : 0;
       mainDial.element.setAttribute('aria-valuenow', String(knob));
       mainDial.element.setAttribute('aria-valuetext', label);
     }
+    renderReadout();
     menuKnob.style.setProperty('--menu-angle', `${knob * 1.35}deg`);
     reverbDial.element.setAttribute('aria-valuenow', String(Math.round(state.reverb)));
     pitchDial.element.setAttribute('aria-valuenow', String(Math.round(state.pitch)));
@@ -380,6 +391,30 @@
     renderDisco(state, dt);
     updateAudio(state, knob);
     updateControls();
+  }
+
+  // Like the app with Spotify, the footer shows the filter for a second after
+  // each change, then the song, scrolling slowly when it does not fit.
+  let filterUntil = 0, songSince = 0;
+  function renderReadout() {
+    const song = clock >= filterUntil;
+    if (shown.song !== song) { shown.song = song; songSince = clock; setClass(readout, 'is-song', song); }
+    const offset = song && !poster ? Math.round(marquee((clock - songSince) / 1000) * 10) / 10 : 0;
+    if (shown.offset === offset) return;
+    shown.offset = offset;
+    songText.style.translate = `${-offset}px 0`;
+    const left = Math.min(8, offset), right = Math.min(8, songOverflow - offset);
+    songLabel.style.setProperty('--fade', songOverflow ? `linear-gradient(90deg, transparent, #000 ${left}px, #000 calc(100% - ${right}px), transparent)` : 'none');
+  }
+  // The app's 24 points per second, after a pause at each end.
+  function marquee(t) {
+    if (!songOverflow) return 0;
+    const travel = songOverflow / 24, hold = 2;
+    t = (t + hold - .5) % (2 * (travel + hold));
+    if (t < hold) return 0;
+    if ((t -= hold) < travel) return t * 24;
+    if ((t -= travel) < hold) return songOverflow;
+    return songOverflow - (t - hold) * 24;
   }
 
   let captionKey = null, words = [];
@@ -419,14 +454,14 @@
     if (shown.seconds !== seconds) { shown.seconds = seconds; elapsedLabel.textContent = `0:0${seconds}`; }
     progressBar.style.transform = `scaleX(${(position / LOOP).toFixed(4)})`;
 
-    const beat = (position % .5);
+    const beat = position % BEAT;
     const energy = (musicOn || poster ? 1 : .35) * (state.stop ? stopLevel : 1);
     const wobble = poster ? 1200 : clock;
     bars.forEach((bar, i) => {
       const x = i / (BAR_COUNT - 1);
       let db = -7 - 15 * Math.pow(x, 1.25);
       db += 9 * Math.exp(-beat / .11) * Math.max(0, 1 - i / 7);
-      db += 7 * Math.exp(-Math.abs(beat - .25) / .045) * T.smoothstep((i - 19) / 8);
+      db += 7 * Math.exp(-Math.abs(beat - BEAT / 2) / .045) * T.smoothstep((i - 19) / 8);
       db += 3 * Math.sin(wobble / 330 + i * .9) + 2 * Math.sin(wobble / 190 + i * i * .37);
       const g = T.gain(knob, barFrequencies[i]);
       db += 20 * Math.log10(Math.max(g, 1e-4));
@@ -468,52 +503,240 @@
 
   // Audio --------------------------------------------------------------------
 
-  const audio = { context: null };
+  const audio = { context: null, buffers: new Map(), rendering: false, voice: null };
 
-  // An original eight-second loop, synthesized locally and transposed for pitch.
-  function makeLoop(context, semitones) {
-    const rate = context.sampleRate;
-    const buffer = context.createBuffer(1, rate * LOOP, rate);
-    const data = buffer.getChannelData(0);
+  // "Lights Down Low", an original four-bar disco loop at 112 BPM: Fmaj9, Em7,
+  // Dm9 and E7 over a four-on-the-floor kick.
+  const CHORDS = [
+    { root: 41, voicing: [57, 60, 64, 67] },
+    { root: 40, voicing: [55, 59, 62, 67] },
+    { root: 38, voicing: [53, 57, 60, 64] },
+    { root: 40, voicing: [56, 59, 62, 64] },
+  ];
+  // [sixteenth, length in sixteenths, interval above the root]
+  const BASSLINE = [[0, 3, 0], [3, 1, 12], [4, 2, 0], [6, 1, 12], [7, 2, 0], [10, 1, 12], [11, 2, 0], [14, 1, 7], [15, 1, 12]];
+  // [bar, sixteenth, length in sixteenths, MIDI note]
+  const MELODY = [
+    [0, 2, 4, 76], [0, 6, 2, 74], [0, 8, 4, 72], [0, 12, 2, 69], [0, 14, 2, 72],
+    [1, 0, 6, 71], [1, 6, 2, 74], [1, 8, 6, 71], [1, 14, 2, 67],
+    [2, 2, 2, 69], [2, 4, 2, 72], [2, 6, 4, 76], [2, 10, 2, 77], [2, 12, 2, 76], [2, 14, 2, 74],
+    [3, 0, 4, 74], [3, 4, 4, 71], [3, 8, 6, 68],
+  ];
+
+  // Build the arrangement in an offline context. Pitch shifts every part,
+  // drums included, like the app's pitch effect.
+  function compose(context, semitones) {
     const shift = Math.pow(2, semitones / 12);
-    function note(start, duration, midi, level) {
-      const frequency = 440 * Math.pow(2, (midi + semitones - 69) / 12);
-      const offset = Math.round(start * rate);
-      const count = Math.min(Math.round(duration * rate), data.length - offset);
-      for (let i = 0; i < count; i++) {
-        const t = i / rate;
-        const phase = 2 * Math.PI * frequency * t;
-        const envelope = Math.min(1, t / .008) * Math.exp(-t * 4 / duration) * Math.min(1, (count - i) / (rate * .02));
-        data[offset + i] += level * envelope * (Math.sin(phase) + .3 * Math.sin(phase * 2) + .12 * Math.sin(phase * 4));
+    const hz = midi => 440 * Math.pow(2, (midi + semitones - 69) / 12);
+    const at = (bar, sixteenth) => (bar * 16 + sixteenth) * BEAT / 4;
+    let seed = 7;
+    const random = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    const noise = context.createBuffer(1, context.sampleRate, context.sampleRate);
+    noise.getChannelData(0).forEach((_, i, data) => { data[i] = random() * 2 - 1; });
+
+    const gain = (destination, value = 1) => {
+      const node = context.createGain();
+      node.gain.value = value;
+      node.connect(destination);
+      return node;
+    };
+    const filter = (destination, type, frequency, q = .7) => {
+      const node = context.createBiquadFilter();
+      node.type = type;
+      node.frequency.value = frequency;
+      node.Q.value = q;
+      node.connect(destination);
+      return node;
+    };
+    const pan = (destination, value) => {
+      const node = context.createStereoPanner();
+      node.pan.value = value;
+      node.connect(destination);
+      return node;
+    };
+    const tone = (type, frequency, t, end, destination, detune = 0) => {
+      const node = context.createOscillator();
+      node.type = type;
+      node.frequency.value = frequency;
+      node.detune.value = detune;
+      node.connect(destination);
+      node.start(t);
+      node.stop(end);
+      return node;
+    };
+    // Attack to `level`, decay toward `level * sustain`, release from `end`.
+    const envelope = (param, t, end, level, attack, decay, sustain, release) => {
+      param.setValueAtTime(0, t);
+      param.linearRampToValueAtTime(level, t + attack);
+      param.setTargetAtTime(level * sustain, t + attack, decay);
+      param.setTargetAtTime(0, end, release);
+    };
+    const burst = (t, decay, type, frequency, level, destination, q) => {
+      const amp = gain(destination, 0);
+      const source = context.createBufferSource();
+      source.buffer = noise;
+      source.connect(filter(amp, type, frequency * shift, q));
+      amp.gain.setValueAtTime(level, t);
+      amp.gain.setTargetAtTime(0, t, decay);
+      source.start(t, random() * .5);
+      source.stop(t + decay * 8);
+      return amp;
+    };
+
+    // Everything but the drums ducks under each kick, then the mix saturates gently.
+    const shaper = context.createWaveShaper();
+    shaper.curve = Float32Array.from({ length: 2048 }, (_, i) => Math.tanh(1.5 * (i / 1023.5 - 1)) / Math.tanh(1.5));
+    shaper.connect(context.destination);
+    const master = gain(shaper, .6);
+    const drums = gain(master), music = gain(master);
+    const reverb = context.createConvolver();
+    reverb.buffer = impulse(context, 1.2);
+    reverb.connect(filter(music, 'lowpass', 5000));
+    const room = gain(reverb, .35);
+    const hats = pan(drums, .2);
+
+    const bassDrum = t => {
+      const amp = gain(drums, 0);
+      const body = tone('sine', 150 * shift, t, t + .6, amp);
+      body.frequency.setValueAtTime(150 * shift, t);
+      body.frequency.exponentialRampToValueAtTime(46 * shift, t + .1);
+      amp.gain.setValueAtTime(0, t);
+      amp.gain.linearRampToValueAtTime(.9, t + .003);
+      amp.gain.setTargetAtTime(0, t + .003, .12);
+      burst(t, .004, 'highpass', 2500, .25, drums);
+      music.gain.setTargetAtTime(.5, t, .006);
+      music.gain.setTargetAtTime(1, t + .05, .09);
+    };
+    const clap = t => {
+      for (const [offset, decay, level] of [[0, .005, 1.5], [.011, .005, 1.4], [.022, .006, 1.25], [.03, .07, 1.1]]) {
+        burst(t + offset, decay, 'bandpass', 1250, level, drums, 1.4).connect(room);
       }
+      const amp = gain(drums, 0);
+      tone('triangle', 185 * shift, t, t + .25, amp);
+      amp.gain.setValueAtTime(.6, t);
+      amp.gain.setTargetAtTime(0, t, .04);
+    };
+    const hat = (t, open, level) => burst(t, open ? .055 : .012, 'highpass', open ? 6000 : 9000, level, hats);
+
+    const bass = (t, duration, midi) => {
+      const f = hz(midi), end = t + duration;
+      const amp = gain(music, 0);
+      envelope(amp.gain, t, end, .18, .004, .15, .7, .03);
+      const tonal = filter(amp, 'lowpass', f * 16, 8);
+      tonal.frequency.setValueAtTime(f * 16, t);
+      tonal.frequency.setTargetAtTime(f * 4, t, .07);
+      tone('sawtooth', f, t, end + .2, tonal);
+      tone('sine', f, t, end + .2, gain(amp, .7));
+    };
+    const stab = (t, duration, notes, level) => {
+      const end = t + duration;
+      const amp = gain(music, 0);
+      amp.connect(room);
+      envelope(amp.gain, t, end, level, .003, .12, .55, .05);
+      const tonal = filter(amp, 'lowpass', 6000 * shift, 3);
+      tonal.frequency.setTargetAtTime(2200 * shift, t, .09);
+      // Two saws per note, detuned and spread left and right.
+      const left = pan(tonal, -.6), right = pan(tonal, .6);
+      notes.forEach(midi => { tone('sawtooth', hz(midi), t, end + .25, left, -8); tone('sawtooth', hz(midi), t, end + .25, right, 8); });
+    };
+    const pad = (t, duration, notes) => {
+      const end = t + duration;
+      const amp = gain(music, 0);
+      amp.connect(room);
+      envelope(amp.gain, t, end, .035, .12, .5, .8, .25);
+      const tonal = filter(amp, 'lowpass', 1800 * shift);
+      notes.forEach(midi => { tone('triangle', hz(midi), t, end + 1, tonal, -5); tone('triangle', hz(midi), t, end + 1, tonal, 5); });
+    };
+
+    // A talk-box lead: one gliding square wave through two vowel formants,
+    // with vibrato and a dotted-eighth echo.
+    const lead = gain(music, .9);
+    lead.connect(room);
+    const echo = context.createDelay(1);
+    echo.delayTime.value = BEAT * .75;
+    const feedback = gain(echo, .3);
+    echo.connect(filter(feedback, 'lowpass', 2500));
+    echo.connect(gain(pan(music, -.35), .35));
+    lead.connect(echo);
+    const gate = gain(filter(lead, 'bandpass', 800 * shift, 4), 0);
+    gate.connect(filter(lead, 'bandpass', 1250 * shift, 5));
+    gate.connect(gain(filter(lead, 'lowpass', 2400 * shift), .25));
+    const end = LOOP + 2;
+    const voice = tone('square', hz(MELODY[0][3]), 0, end, gate);
+    const vibrato = gain(voice.detune, 14);
+    tone('sine', 5.2, 0, end, vibrato);
+    for (const [bar, sixteenth, length, midi] of MELODY) {
+      const t = at(bar, sixteenth), off = t + length * BEAT / 4;
+      voice.frequency.setTargetAtTime(hz(midi), t, .02);
+      gate.gain.setTargetAtTime(.22, t, .012);
+      gate.gain.setTargetAtTime(0, off - .03, .03);
     }
-    const chords = [[57, 60, 64], [53, 57, 60], [60, 64, 67], [55, 59, 62]];
-    chords.forEach((chord, bar) => {
-      chord.forEach(pitch => note(bar * 2, 1.95, pitch, .065));
+
+    CHORDS.forEach(({ root, voicing }, bar) => {
+      pad(at(bar, 0), 4 * BEAT - .05, voicing);
+      for (const sixteenth of [2, 6, 10, 14]) stab(at(bar, sixteenth), BEAT * .3, voicing, .115);
+      for (const [sixteenth, length, interval] of BASSLINE) bass(at(bar, sixteenth), length * BEAT / 4 * .9, root + interval);
       for (let beat = 0; beat < 4; beat++) {
-        note(bar * 2 + beat * .5, .42, chord[0] - 12, .15);
-        note(bar * 2 + beat * .5 + .25, .23, chord[beat % 3] + 12, .075);
+        bassDrum(at(bar, beat * 4));
+        if (beat % 2) clap(at(bar, beat * 4));
+        hat(at(bar, beat * 4 + 1), false, .24);
+        hat(at(bar, beat * 4 + 2), true, .65);
+        hat(at(bar, beat * 4 + 3), false, .33);
       }
     });
-    let seed = 7;
-    for (let beat = 0; beat < 16; beat++) {
-      const offset = Math.round(beat * .5 * rate);
-      for (let i = 0; i < rate * .16 && offset + i < data.length; i++) {
-        const t = i / rate;
-        data[offset + i] += .2 * Math.sin(2 * Math.PI * shift * (48 * t + 7 * (1 - Math.exp(-t * 25)))) * Math.exp(-t * 35) * Math.min(1, t * 1000);
-      }
-      const hat = offset + Math.round(.25 * rate);
-      for (let i = 0; i < rate * .055 && hat + i < data.length; i++) {
-        seed = (seed * 16807) % 2147483647;
-        data[hat + i] += (seed / 2147483647 * 2 - 1) * .025 * Math.exp(-i / (rate * .012 / shift));
-      }
-    }
-    return buffer;
   }
 
-  function impulse(context) {
+  // Render the loop with a two-second tail, then fold the tail over its start
+  // so echoes and reverb carry across the loop point. Peaks normalize to -1 dB.
+  // Before sound is on, render at a common rate; playback resamples if needed.
+  function renderLoop(semitones) {
+    const rate = audio.context?.sampleRate ?? 48000, length = Math.round(LOOP * rate), tail = 2 * rate;
+    const offline = new OfflineAudioContext(2, length + tail, rate);
+    compose(offline, semitones);
+    return offline.startRendering().then(rendered => {
+      const buffer = new AudioBuffer({ numberOfChannels: 2, length, sampleRate: rate });
+      const channels = [0, 1].map(channel => {
+        const input = rendered.getChannelData(channel), output = buffer.getChannelData(channel);
+        output.set(input.subarray(0, length));
+        for (let i = 0; i < tail; i++) output[i] += input[length + i];
+        return output;
+      });
+      let peak = 0;
+      for (const data of channels) for (const value of data) peak = Math.max(peak, Math.abs(value));
+      for (const data of channels) for (let i = 0; i < data.length; i++) data[i] *= .89 / peak;
+      return buffer;
+    });
+  }
+
+  // Render one transposition at a time: the pitch playback wants now, then,
+  // with sound on, the scripted demo's steps. Keep a handful of renders.
+  function prepare(semitones) {
+    if (semitones !== undefined) audio.wanted = semitones;
+    if (audio.rendering || audio.failed) return;
+    const next = [audio.wanted, 0, ...(sound ? [1, 2, 3, 4] : [])].find(s => s !== undefined && !audio.buffers.has(s));
+    if (next === undefined) return;
+    audio.rendering = true;
+    Promise.resolve().then(() => renderLoop(next)).then(buffer => {
+      audio.rendering = false;
+      audio.buffers.set(next, buffer);
+      if (audio.buffers.size > 8) {
+        const old = [...audio.buffers.keys()].find(s => (s < 0 || s > 4) && s !== audio.voice?.semitones && s !== audio.wanted);
+        if (old !== undefined) audio.buffers.delete(old);
+      }
+      syncAudio();
+      prepare();
+    }, error => {
+      console.warn('Demo audio:', error.message);
+      audio.rendering = false;
+      audio.failed = true;
+      setSound(false);
+      listen.textContent = 'Audio unavailable';
+    });
+  }
+
+  function impulse(context, seconds = 2.6) {
     const rate = context.sampleRate;
-    const length = Math.round(rate * 2.6);
+    const length = Math.round(rate * seconds);
     const buffer = context.createBuffer(2, length, rate);
     let seed = 11;
     for (let channel = 0; channel < 2; channel++) {
@@ -528,6 +751,7 @@
   }
 
   function ensureAudio() {
+    if (audio.failed) return false;
     if (audio.context) return true;
     try {
       const context = new AudioContext();
@@ -545,15 +769,11 @@
       mix.connect(reverbDry).connect(output);
       mix.connect(reverb).connect(reverbWet).connect(output);
       output.connect(context.destination);
-      Object.assign(audio, { context, filter, wet, dry, reverbWet, reverbDry, buffers: new Map(), voice: null, origin: 0, applied: {} });
+      Object.assign(audio, { context, filter, wet, dry, reverbWet, reverbDry, origin: 0, applied: {} });
       return true;
     } catch {
       return false;
     }
-  }
-  function buffer(semitones) {
-    if (!audio.buffers.has(semitones)) audio.buffers.set(semitones, makeLoop(audio.context, semitones));
-    return audio.buffers.get(semitones);
   }
   function audioPosition() {
     const position = (audio.context.currentTime - audio.origin) % LOOP;
@@ -568,7 +788,7 @@
     const offset = audio.voice ? audioPosition() : loopClock / 1000;
     if (!audio.voice) audio.origin = now - offset;
     const source = context.createBufferSource();
-    source.buffer = buffer(semitones);
+    source.buffer = audio.buffers.get(semitones);
     source.loop = true;
     const level = context.createGain();
     level.gain.setValueAtTime(0, now);
@@ -620,7 +840,9 @@
     } else if (!state.stop && voice.stopping) {
       startVoice(voice.semitones);
     } else if (!state.stop && Math.round(state.pitch) !== voice.semitones) {
-      startVoice(Math.round(state.pitch));
+      const semitones = Math.round(state.pitch);
+      if (audio.buffers.has(semitones)) startVoice(semitones);
+      else prepare(semitones);
     }
   }
 
@@ -628,8 +850,10 @@
     const shouldPlay = sound && running();
     if (shouldPlay) {
       if (!ensureAudio()) return;
-      const state = sample(chapter, time);
-      if (!audio.voice) startVoice(Math.round(manual ? manual.pitch : state.pitch));
+      // Until the loop renders, prepare() calls back here.
+      const semitones = Math.round(manual ? manual.pitch : sample(chapter, time).pitch);
+      if (!audio.voice && audio.buffers.has(semitones)) startVoice(semitones);
+      prepare(audio.voice ? undefined : semitones);
       if (audio.context.state !== 'running') audio.context.resume().then(kick, () => {});
     } else if (audio.context?.state === 'running') {
       audio.context.suspend();
@@ -746,6 +970,8 @@
   });
 
   T.onVisible(frame, visible => { inView = visible; sync(); }, .15);
+  // Start rendering the loop as soon as the visitor reaches for the demo.
+  for (const type of ['pointerenter', 'focusin']) frame.addEventListener(type, () => prepare(), { once: true });
   document.addEventListener('visibilitychange', sync);
   window.addEventListener('pagehide', () => { audio.context?.suspend(); });
   T.reducedMotion.addEventListener('change', () => { if (T.reducedMotion.matches && playing) { playing = false; sync(); } });

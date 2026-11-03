@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- Source for site/assets/og.png. Render at 1200 × 630; see site/README.md. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: Geist; src: url("../../site/assets/geist.woff2") format("woff2"); font-weight: 100 900; }
+  html, body { margin: 0; }
+  body {
+    width: 1200px; height: 630px; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(560px 340px at 50% 30%, #fb760024, transparent 70%), #0e0e12;
+    color: #f4f2f0; font-family: Geist, sans-serif; text-align: center;
+    -webkit-font-smoothing: antialiased;
+  }
+  .icon {
+    width: 168px; height: 168px; border-radius: 38px;
+    box-shadow: 0 0 0 1px #ffffff1f, 0 24px 60px -12px #000000cc;
+  }
+  h1 { margin: 44px 0 0; font-size: 84px; line-height: 1; font-weight: 760; letter-spacing: -.058em; }
+  p { margin: 22px 0 0; color: #94929b; font-size: 30px; line-height: 1.3; letter-spacing: -.01em; }
+  .url { position: absolute; bottom: 38px; margin: 0; color: #66646d; font-size: 20px; font-weight: 500; letter-spacing: .01em; }
+</style>
+</head>
+<body>
+  <img class="icon" src="../AppIcon.png" alt="">
+  <h1>Twiddle your Mac audio.</h1>
+  <p>A little DJ filter for your Mac’s menu bar.</p>
+  <p class="url">twiddle.fun</p>
+</body>
+</html>

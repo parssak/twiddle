@@ -16,6 +16,12 @@ The three download links in `index.html` (navigation, hero and Install) point to
 
 Brand assets are derived from `Assets/TwiddleWordmark.svg`, `Assets/AppIcon.png` (`assets/icon.png` and `assets/icon-224.jpg`), and `Assets/KnobMetal.png` in this repository. The desktop scene uses an original CSS gradient; third-party marks and font provenance are listed in [asset sources](assets/SOURCES.md).
 
+The social preview `assets/og.png` (1200 × 630) is rendered from `Assets/OG/og.html`. After editing it, run this from the repository root and update the `?v=` on the `og:image` URL:
+
+```sh
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --force-device-scale-factor=1 --window-size=1200,630 --allow-file-access-from-files --virtual-time-budget=2000 --screenshot="$PWD/site/assets/og.png" "file://$PWD/Assets/OG/og.html"
+```
+
 ## Scripts
 
 - `dial.js`: the shared knob (geometry, ticks and accent colour), the app's cutoff mapping (low-pass 20 kHz to 115 Hz, high-pass 20 Hz to 10 kHz), biquad response curves, and layout helpers.

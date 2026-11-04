@@ -6,6 +6,24 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Twiddle</title>
         <item>
+            <title>0.9.4</title>
+            <pubDate>Wed, 04 Nov 2026 16:00:03 -0500</pubDate>
+            <link>https://twiddle.fun</link>
+            <sparkle:version>13</sparkle:version>
+            <sparkle:shortVersionString>0.9.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# Twiddle 0.9.4
+
+- Fixes filtering going silent in Arc when several Arc helpers share a bundle ID and macOS attached the wrong one.
+- Follows helpers that start, exit, or restart while Twiddle is filtering, without resetting the filter.
+- Includes the `say` auto-apply and Spotify audio-helper fixes from 0.9.3.
+
+Requires macOS 26 or later on Apple silicon. Twiddle 0.9.1 users can update in the app. Users on 0.9 or earlier need one manual download to move to the current update feed.
+]]></description>
+            <enclosure url="https://github.com/parssak/twiddle/releases/download/v0.9.4/Twiddle-0.9.4-arm64.dmg" length="6320300" type="application/octet-stream" sparkle:edSignature="uz/lMlKjYpCzOwKfT7MvZ1BnpoXGjj3tmA3BO4PytvlMMMVFJk5RC21tA9AhKkNSUsEA8knubxG7aO5QYdEaCw=="/>
+        </item>
+        <item>
             <title>0.9.3</title>
             <pubDate>Thu, 01 Oct 2026 20:17:41 -0400</pubDate>
             <link>https://twiddle.fun</link>
@@ -43,6 +61,6 @@ Requires macOS 26 or later on Apple silicon. Twiddle 0.9.1 users can update in t
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 5zLx5HwgSrTi92fUovOwnV+YwLl7tC7tvHKwuLiS9NtRM/VlMAQBusMF7z17rKQLWDx55hXumCVYrs0IDhKiBw==
-length: 3005
+edSignature: WNi39k4Hft6/PIZp9z8ga2TLbi7p4DUDjwiHpCdX/n/MQQ47aoCpD4gqdRjTU4EY7hD1e2Y8lC5Tx2bN8BigBg==
+length: 4298
 -->

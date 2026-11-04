@@ -12,7 +12,7 @@ Open http://localhost:8765.
 
 Vercel project: `goose-party/twiddle`, serving `twiddle.fun`. From the repository root, run `npx vercel@59.16.0 link --yes --project twiddle --scope goose-party` once, then `npx vercel@59.16.0 --prod --scope goose-party`. The root `vercel.json` sets `site` as the output directory with no build command; `.vercelignore` allows only public website files and `vercel.json`. Before deploying, run `npx vercel@59.16.0 deploy --dry --json --scope goose-party` and check that the manifest includes `site/index.html` and both appcasts, with no files outside `site/` other than `vercel.json`.
 
-The three download links in `index.html` (navigation, hero and Install) point to the signed and notarized v0.9.3 DMG, and the hero shows the version and links to its release notes. Update all of them when publishing a new release. Stylesheet and script URLs carry `?v=` with the first 10 hex characters of each file's SHA-256; update them when a file changes.
+The three download links in `index.html` (navigation, hero and Install) point to the signed and notarized v0.9.4 DMG, and the hero shows the version. Update all of them when publishing a new release. Stylesheet and script URLs carry `?v=` with the first 10 hex characters of each file's SHA-256; update them when a file changes.
 
 Brand assets are derived from `Assets/TwiddleWordmark.svg`, `Assets/AppIcon.png` (`assets/icon.png` and `assets/icon-224.jpg`), and `Assets/KnobMetal.png` in this repository. The desktop scene uses an original CSS gradient; third-party marks and font provenance are listed in [asset sources](assets/SOURCES.md).
 

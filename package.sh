@@ -84,9 +84,12 @@ cleanup() {
 trap cleanup EXIT
 mkdir "$staging/contents"
 ditto "$app" "$staging/contents/Twiddle.app"
-ln -s /Applications "$staging/contents/Applications"
 cp "$PWD/Assets/DMG/.background.png" "$staging/contents/.background.png"
 cp "$PWD/Assets/DMG/.DS_Store" "$staging/contents/.DS_Store"
+# release.sh builds under umask 077 to protect signing material. The installed
+# app must stay readable and launchable by every account on the Mac.
+chmod -R u+rwX,go+rX,go-w "$staging/contents"
+ln -s /Applications "$staging/contents/Applications"
 codesign --verify --deep --strict "$staging/contents/Twiddle.app"
 hdiutil create -volname Twiddle -srcfolder "$staging/contents" \
     -fs HFS+ -format UDZO "$staging/Twiddle.dmg"

@@ -4,7 +4,7 @@ A little DJ filter for your Mac’s menu bar. Turn the knob to cut the highs or 
 
 **[Download Twiddle](https://github.com/parssak/twiddle/releases/latest)** · Apple Silicon · macOS 26+
 
-v0.9.3 automatically applies your preset while macOS `say` speaks and keeps filtering active when selected apps move audio to a helper process.
+v0.9.4 keeps filtering Arc when its audio comes from one of several helpers that share a bundle ID.
 
 <img src="docs/screenshot.png" width="520" alt="Twiddle in the macOS menu bar, filtering Spotify with a brushed-metal knob">
 

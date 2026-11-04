@@ -29,6 +29,9 @@ hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" "$dmg" >/dev/null
 [[ -d "$mountpoint/Twiddle.app" && -L "$mountpoint/Applications" ]]
 cmp "$PWD/Assets/DMG/.background.png" "$mountpoint/.background.png"
 cmp "$PWD/Assets/DMG/.DS_Store" "$mountpoint/.DS_Store"
+private_files=$(find "$mountpoint/Twiddle.app" \( \( -type d ! -perm -go=rx \) -o \( ! -type l ! -perm -go=r \) \
+    -o \( -type f -perm -u=x ! -perm -go=x \) \) -print)
+[[ -z "$private_files" ]] || { echo "DMG app has files other accounts cannot use:" >&2; echo "$private_files" | head -5 >&2; exit 1; }
 codesign --verify --deep --strict "$mountpoint/Twiddle.app"
 codesign -d --extract-certificates="$certificate_dir/cert-" "$mountpoint/Twiddle.app" 2>/dev/null
 fingerprint=$(openssl x509 -inform DER -in "$certificate_dir/cert-0" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':')

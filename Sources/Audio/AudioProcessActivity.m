@@ -1,5 +1,6 @@
 #import "AudioProcessActivity.h"
 #import "CoreAudioUtilities.h"
+#import <CoreAudio/CATapDescription.h>
 #include <unistd.h>
 #include <libproc.h>
 
@@ -28,30 +29,43 @@ static NSData *audioProcessList(void) {
     return data;
 }
 
-NSArray<NSString *> *audioCaptureBundleIDs(NSSet<NSString *> *bundles, NSArray<NSString *> *processBundles) {
-    NSMutableSet *identities = [bundles mutableCopy] ?: [NSMutableSet new];
-    for (NSString *processBundle in processBundles) {
+BOOL updateCaptureDescription(CATapDescription *description, NSSet<NSString *> *bundles,
+                              NSDictionary<NSNumber *, NSString *> *processBundles) {
+    // Multiple Arc helpers share a bundle ID. Core Audio resolves that ID to
+    // only one live object, which may be the video helper instead of the audio helper.
+    NSMutableSet *identities = [bundles mutableCopy];
+    [identities addObjectsFromArray:description.bundleIDs];
+    NSMutableArray *processes = [NSMutableArray new];
+    for (NSNumber *process in processBundles) {
+        NSString *identity = processBundles[process];
         for (NSString *bundle in bundles) {
-            if (audioProcessMatchesBundle(processBundle, bundle)) {
-                [identities addObject:processBundle];
+            if (audioProcessMatchesBundle(identity, bundle)) {
+                [processes addObject:process];
+                [identities addObject:identity];
                 break;
             }
         }
     }
-    return [identities.allObjects sortedArrayUsingSelector:@selector(compare:)];
+    NSArray *bundleIDs = [identities.allObjects sortedArrayUsingSelector:@selector(compare:)];
+    NSArray *liveObjects = processBundles ? [processes sortedArrayUsingSelector:@selector(compare:)] : description.processes;
+    if ([description.bundleIDs isEqualToArray:bundleIDs] && [description.processes isEqualToArray:liveObjects]) return NO;
+    description.processes = liveObjects;
+    description.bundleIDs = bundleIDs;
+    return YES;
 }
 
-NSArray<NSString *> *captureBundleIDs(NSSet<NSString *> *bundles) {
+NSDictionary<NSNumber *, NSString *> *audioProcessBundles(void) {
     NSData *data = audioProcessList();
+    if (!data) return nil;
     const AudioObjectID *processes = data.bytes;
-    NSMutableArray *identities = [NSMutableArray new];
+    NSMutableDictionary *identities = [NSMutableDictionary new];
     for (NSUInteger i = 0; i < data.length / sizeof(AudioObjectID); i++) {
         pid_t pid = 0;
         if (readProperty(processes[i], kAudioProcessPropertyPID, kAudioObjectPropertyScopeGlobal, sizeof(pid), &pid) || pid == getpid()) continue;
         NSString *bundle = stringProperty(processes[i], kAudioProcessPropertyBundleID);
-        if (bundle.length && ![bundle isEqualToString:NSBundle.mainBundle.bundleIdentifier]) [identities addObject:bundle];
+        if (bundle.length && ![bundle isEqualToString:NSBundle.mainBundle.bundleIdentifier]) identities[@(processes[i])] = bundle;
     }
-    return audioCaptureBundleIDs(bundles, identities);
+    return identities;
 }
 
 static BOOL processActive(NSString *scope, NSSet<NSString *> *bundles, NSMutableArray<NSNumber *> *outputs) {

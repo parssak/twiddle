@@ -1,5 +1,7 @@
 #import <Foundation/Foundation.h>
 
+@class CATapDescription;
+
 // Core Audio process discovery only. These queries never capture audio.
 // Microphone scope is "any" or "wispr".
 BOOL microphoneActive(NSString *scope);
@@ -11,10 +13,13 @@ NSArray<NSNumber *> *activeOutputProcesses(NSSet<NSString *> *bundles);
 BOOL audioProcessMatchesPlaybackTrigger(NSString *processBundle, NSString *executablePath,
                                        NSSet<NSString *> *bundles);
 
-// Exact tap identities for selected apps and their existing audio helpers, even
-// while those helpers are silent. Core Audio does not expand bundle ID prefixes.
-NSArray<NSString *> *captureBundleIDs(NSSet<NSString *> *bundles);
-NSArray<NSString *> *audioCaptureBundleIDs(NSSet<NSString *> *bundles, NSArray<NSString *> *processBundles);
+// Live Core Audio object IDs and their exact bundle identifiers, excluding Twiddle.
+NSDictionary<NSNumber *, NSString *> *audioProcessBundles(void);
+
+// Update a selected-app tap with live process objects and bundle IDs for restoration.
+// A failed enumeration (nil) leaves the previous live objects in place.
+BOOL updateCaptureDescription(CATapDescription *description, NSSet<NSString *> *bundles,
+                              NSDictionary<NSNumber *, NSString *> *processBundles);
 
 // Match an app or its dot-delimited helpers, including Arc’s differently cased IDs.
 BOOL audioProcessMatchesBundle(NSString *processBundle, NSString *appBundle);

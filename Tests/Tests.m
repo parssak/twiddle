@@ -7,6 +7,7 @@
 #import "GlobalFilterHotkeys.h"
 #import "FilterKnob.h"
 #import "AudioProcessActivity.h"
+#import <CoreAudio/CATapDescription.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <IOKit/hidsystem/ev_keymap.h>
 #import <IOKit/hidsystem/IOLLEvent.h>
@@ -57,22 +58,26 @@ static int controlTests(void) {
     CHECK(!audioProcessMatchesPlaybackTrigger(nil, @"/usr/bin/say-other", codex));
     CHECK(!audioProcessMatchesPlaybackTrigger(@"com.apple.Music", @"/usr/bin/afplay", codex));
     CHECK(audioProcessMatchesPlaybackTrigger(@"com.openai.codex.helper", nil, codex));
-    // Spotify's main player and helper can take turns producing audio. The tap
-    // needs both exact identities, not just the app selected in Settings.
-    NSSet *spotify = [NSSet setWithObject:@"com.spotify.client"];
-    NSArray *spotifyProcesses = @[@"com.spotify.client", @"com.spotify.client.helper",
-        @"com.spotify.client.helper", @"com.spotify.clientother", @"com.apple.Music"];
-    CHECK(([audioCaptureBundleIDs(spotify, spotifyProcesses) isEqualToArray:
-        @[@"com.spotify.client", @"com.spotify.client.helper"]]));
-    CHECK(([audioCaptureBundleIDs(spotify, @[@"com.spotify.client.helper.audio"]) isEqualToArray:
-        @[@"com.spotify.client", @"com.spotify.client.helper.audio"]]));
-    CHECK(([audioCaptureBundleIDs(spotify, @[]) isEqualToArray:@[@"com.spotify.client"]]));
-    CHECK(audioCaptureBundleIDs([NSSet set], spotifyProcesses).count == 0);
-    NSSet *multipleApps = [NSSet setWithArray:@[@"com.spotify.client", @"company.thebrowser.Browser"]];
-    NSSet *expanded = [NSSet setWithArray:audioCaptureBundleIDs(multipleApps,
-        @[@"com.spotify.client.helper", @"company.thebrowser.browser.helper", @"com.apple.Music"])];
-    CHECK(([expanded isEqualToSet:[NSSet setWithArray:@[@"com.spotify.client", @"com.spotify.client.helper",
-        @"company.thebrowser.Browser", @"company.thebrowser.browser.helper"]]]));
+    NSString *arc = @"company.thebrowser.Browser", *helper = @"company.thebrowser.browser.helper";
+    NSString *spotify = @"com.spotify.client", *spotifyHelper = @"com.spotify.client.helper";
+    NSSet *targets = [NSSet setWithObjects:arc, spotify, nil];
+    CATapDescription *tap = [[CATapDescription alloc] initStereoMixdownOfProcesses:@[]];
+    CHECK(updateCaptureDescription(tap, targets, @{}));
+    CHECK(tap.processes.count == 0 && [[NSSet setWithArray:tap.bundleIDs] isEqualToSet:targets]);
+    NSSet *identities = [NSSet setWithObjects:arc, helper, spotify, spotifyHelper, nil];
+    NSDictionary *live = @{@11:arc, @12:helper, @13:helper, @14:spotifyHelper,
+                           @15:@"company.thebrowser.browserother.helper", @16:@"com.apple.Music"};
+    CHECK(updateCaptureDescription(tap, targets, live));
+    CHECK(([tap.processes isEqualToArray:@[@11, @12, @13, @14]]));
+    CHECK([[NSSet setWithArray:tap.bundleIDs] isEqualToSet:identities]);
+    CHECK(!updateCaptureDescription(tap, targets, live));
+    CHECK(!updateCaptureDescription(tap, targets, nil)); // Transient discovery failure.
+    // A replacement audio helper has the same bundle ID but needs a new tap object.
+    CHECK((updateCaptureDescription(tap, targets, @{@12:helper, @17:helper})));
+    CHECK(([tap.processes isEqualToArray:@[@12, @17]]));
+    CHECK(updateCaptureDescription(tap, targets, @{}));
+    CHECK(tap.processes.count == 0);
+    CHECK([[NSSet setWithArray:tap.bundleIDs] isEqualToSet:identities]);
     CHECK([[FilterKnob labelForValue:[FilterKnob defaultPresetValue]] isEqualToString:@"Low-pass · 1100 Hz"]);
     NSColor *filterColor = [FilterKnob.filterColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
     CHECK(fabs(filterColor.redComponent - .98245) < 1e-5);

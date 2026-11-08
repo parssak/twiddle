@@ -972,6 +972,9 @@
   T.onVisible(frame, visible => { inView = visible; sync(); }, .15);
   // Start rendering the loop as soon as the visitor reaches for the demo.
   for (const type of ['pointerenter', 'focusin']) frame.addEventListener(type, () => prepare(), { once: true });
+  // A touch only earns permission to play when the finger lifts, which is too
+  // late for the resume in a knob's pointerdown. Ask again from inside that gesture.
+  for (const type of ['pointerup', 'touchend']) frame.addEventListener(type, syncAudio);
   document.addEventListener('visibilitychange', sync);
   window.addEventListener('pagehide', () => { audio.context?.suspend(); });
   T.reducedMotion.addEventListener('change', () => { if (T.reducedMotion.matches && playing) { playing = false; sync(); } });

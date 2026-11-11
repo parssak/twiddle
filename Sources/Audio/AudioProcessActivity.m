@@ -105,6 +105,34 @@ static BOOL processActive(NSString *scope, NSSet<NSString *> *bundles, NSMutable
     return NO;
 }
 
+BOOL audioProcessIsVoiceChat(NSString *processBundle, BOOL runningInput, BOOL hasInputDevice, BOOL runningOutput,
+                             NSSet<NSString *> *excludedBundles) {
+    if (!runningInput || !hasInputDevice || !runningOutput) return NO;
+    for (NSString *bundle in excludedBundles)
+        if (audioProcessMatchesBundle(processBundle, bundle)) return NO;
+    return YES;
+}
+
+BOOL voiceChatActive(NSSet<NSString *> *excludedBundles) {
+    NSData *data = audioProcessList();
+    const AudioObjectID *processes = data.bytes;
+    for (NSUInteger i = 0; i < data.length / sizeof(AudioObjectID); i++) {
+        pid_t pid = 0;
+        // Twiddle's own route runs input and output; it is never the call.
+        if (readProperty(processes[i], kAudioProcessPropertyPID, kAudioObjectPropertyScopeGlobal, sizeof(pid), &pid) || pid == getpid()) continue;
+        UInt32 input = 0, output = 0;
+        if (readProperty(processes[i], kAudioProcessPropertyIsRunningInput, kAudioObjectPropertyScopeGlobal, sizeof(input), &input) || !input) continue;
+        if (readProperty(processes[i], kAudioProcessPropertyIsRunningOutput, kAudioObjectPropertyScopeGlobal, sizeof(output), &output) || !output) continue;
+        AudioObjectPropertyAddress inputs = address(kAudioProcessPropertyDevices, kAudioObjectPropertyScopeInput);
+        UInt32 inputSize = 0;
+        BOOL hasInputDevice = !AudioObjectGetPropertyDataSize(processes[i], &inputs, 0, NULL, &inputSize) && inputSize >= sizeof(AudioObjectID);
+        NSString *bundle = stringProperty(processes[i], kAudioProcessPropertyBundleID);
+        if ([bundle isEqualToString:NSBundle.mainBundle.bundleIdentifier]) continue;
+        if (audioProcessIsVoiceChat(bundle, YES, hasInputDevice, YES, excludedBundles)) return YES;
+    }
+    return NO;
+}
+
 BOOL microphoneActive(NSString *scope) { return processActive(scope, nil, nil); }
 NSArray<NSNumber *> *activeOutputProcesses(NSSet<NSString *> *bundles) {
     NSMutableArray *outputs = [NSMutableArray new];

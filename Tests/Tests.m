@@ -1,6 +1,7 @@
 #include "Filter.h"
 #include "FilterControl.h"
 #include "AudioActivity.h"
+#include "VoiceDuck.h"
 #include <stdio.h>
 #import <Cocoa/Cocoa.h>
 #import "HoldShortcutMonitor.h"
@@ -58,6 +59,13 @@ static int controlTests(void) {
     CHECK(!audioProcessMatchesPlaybackTrigger(nil, @"/usr/bin/say-other", codex));
     CHECK(!audioProcessMatchesPlaybackTrigger(@"com.apple.Music", @"/usr/bin/afplay", codex));
     CHECK(audioProcessMatchesPlaybackTrigger(@"com.openai.codex.helper", nil, codex));
+    NSSet *callExclusions = [NSSet setWithObjects:@"com.spotify.client", @"company.thebrowser.dia", nil];
+    CHECK(audioProcessIsVoiceChat(@"com.openai.codex.helper", YES, YES, YES, callExclusions));
+    CHECK(audioProcessIsVoiceChat(nil, YES, YES, YES, callExclusions));
+    CHECK(!audioProcessIsVoiceChat(@"com.electron.wispr-flow.helper", YES, YES, NO, callExclusions));
+    CHECK(!audioProcessIsVoiceChat(@"com.apple.corespeechd", YES, NO, YES, callExclusions));
+    CHECK(!audioProcessIsVoiceChat(@"com.openai.codex.helper", NO, YES, YES, callExclusions));
+    CHECK(!audioProcessIsVoiceChat(@"company.thebrowser.dia.helper", YES, YES, YES, callExclusions));
     NSString *arc = @"company.thebrowser.Browser", *helper = @"company.thebrowser.browser.helper";
     NSString *spotify = @"com.spotify.client", *spotifyHelper = @"com.spotify.client.helper";
     NSSet *targets = [NSSet setWithObjects:arc, spotify, nil];
@@ -309,7 +317,44 @@ int cliTests(void);
 int nativeEffectTests(void);
 int performanceEffectsTests(void);
 int energyTests(void);
+static int voiceDuckTests(void) {
+    for (unsigned r = 0; r < 2; r++) {
+        double rate = r ? 48000 : 44100;
+        VoiceDuck duck; voiceDuckReset(&duck);
+        float samples[512];
+        AudioBufferList audio = {1, {{2, sizeof(samples), samples}}};
+        // Full level leaves audio untouched.
+        for (unsigned i = 0; i < 512; i++) samples[i] = .5f;
+        voiceDuckProcess(&duck, false, rate, &audio, 256);
+        for (unsigned i = 0; i < 512; i++) CHECK(samples[i] == .5f);
+        // A call settles at -30 dB within half a second, without overshoot.
+        float previous = 1;
+        for (unsigned block = 0; block < rate / 2 / 256; block++) {
+            for (unsigned i = 0; i < 512; i++) samples[i] = 1;
+            voiceDuckProcess(&duck, true, rate, &audio, 256);
+            CHECK(samples[0] == samples[1] && samples[510] <= previous && samples[510] >= voiceDuckGain - 1e-6f);
+            previous = samples[510];
+        }
+        CHECK(fabs(20 * log10(previous) + 30) < .1);
+        // After the call, the ramp returns exactly to full level.
+        for (unsigned block = 0; block < rate * 5 / 256; block++) {
+            for (unsigned i = 0; i < 512; i++) samples[i] = 1;
+            voiceDuckProcess(&duck, false, rate, &audio, 256);
+        }
+        CHECK(duck.gain == 1 && samples[511] == 1);
+        // Planar stereo is scaled identically.
+        float left[64], right[64];
+        struct { UInt32 count; AudioBuffer buffers[2]; } planar = {2, {{1, sizeof(left), left}, {1, sizeof(right), right}}};
+        for (unsigned i = 0; i < 64; i++) { left[i] = .3f; right[i] = -.3f; }
+        voiceDuckProcess(&duck, true, rate, (AudioBufferList *)&planar, 64);
+        for (unsigned i = 0; i < 64; i++) CHECK(left[i] == -right[i] && left[i] < .3f);
+    }
+    puts("Voice chat ducking checks passed.");
+    return 0;
+}
+
 int selfTest(void) {
+    if (voiceDuckTests()) return 1;
     if (energyTests()) return 1;
     if (performanceEffectsTests()) return 1;
     if (nativeEffectTests()) return 1;

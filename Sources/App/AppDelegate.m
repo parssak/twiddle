@@ -30,7 +30,7 @@ static const NSPoint EffectKnobPositions[] = { {16, 36}, {136, 36} };
 
 @interface AppDelegate () <NSPopoverDelegate> {
     FilterControl _control;
-    NSTimeInterval _nextActivityRefresh, _nextMetadataRefresh, _voiceChatSeen;
+    NSTimeInterval _nextActivityRefresh, _nextMetadataRefresh;
     NSInteger _statusAngle;
     BOOL _suspended;
     BOOL _showSettingsAfterPopoverCloses;
@@ -812,7 +812,6 @@ static NSImage *knobStatusImage(NSInteger degrees) {
         @"triggerApps":[NSUserDefaults.standardUserDefaults stringArrayForKey:@"triggerBundles"] ?: @[],
         @"audioError":self.engine.errorMessage ?: (id)NSNull.null,
         @"audioCallbacks":@(self.engine.callbacks), @"inputPeak":@(self.engine.peak),
-        @"voiceChatDucking":@(self.engine.voiceChatDucking),
         @"outputDevice":self.engine.outputName ?: (id)NSNull.null};
 }
 - (void)shortcutHeld:(BOOL)held {
@@ -826,13 +825,6 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     NSArray *processes = !_suspended && self.engine.running ? activeOutputProcesses([NSSet setWithArray:[NSUserDefaults.standardUserDefaults stringArrayForKey:@"triggerBundles"] ?: @[]]) : @[];
     [self.playbackActivity updateProcesses:processes];
     controlSetTrigger(&_control, PresetTriggerPlayback, self.playbackActivity.audible, NSProcessInfo.processInfo.systemUptime);
-    // The replay is not ducked by macOS during calls, so duck it here. Hold
-    // briefly because call apps can restart their streams mid-call.
-    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
-    if (!_suspended && self.engine.running && voiceChatActive([NSSet setWithArray:self.targetBundles ?: @[]])) _voiceChatSeen = now;
-    BOOL ducking = _voiceChatSeen > 0 && now - _voiceChatSeen < 1;
-    if (ducking != self.engine.voiceChatDucking) NSLog(@"Voice chat ducking %@", ducking ? @"on" : @"off");
-    self.engine.voiceChatDucking = ducking;
     [self updateControl];
 }
 - (void)updateSourceButton {

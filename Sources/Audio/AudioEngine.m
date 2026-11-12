@@ -8,14 +8,12 @@
 #include "Filter.h"
 #include "PerformanceEffects.h"
 #include "NativeEffects.h"
-#include "VoiceDuck.h"
 
 typedef struct {
     Filter filter;
     PerformanceEffects performance;
     NativeEffect reverbEffect, pitchEffect;
-    VoiceDuck duck;
-    _Atomic(bool) tapeStop, ducked;
+    _Atomic(bool) tapeStop;
     _Atomic(float) reverb, pitch;
     _Atomic(float) target, peak;
     _Atomic(unsigned) callbacks;
@@ -71,8 +69,6 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
         atomic_store_explicit(&state->badLayout, true, memory_order_relaxed);
     if (nativeEffectProcess(&state->reverbEffect, output, frames, reverb))
         atomic_store_explicit(&state->badLayout, true, memory_order_relaxed);
-    voiceDuckProcess(&state->duck, atomic_load_explicit(&state->ducked, memory_order_relaxed),
-        state->filter.sampleRate, output, frames);
     atomic_store_explicit(&state->peak, peak, memory_order_relaxed);
     atomic_fetch_add_explicit(&state->callbacks, 1, memory_order_relaxed);
     return noErr;
@@ -94,8 +90,6 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     if ((self = [super init])) {
         atomic_init(&_audio.target, 0);
         atomic_init(&_audio.tapeStop, false);
-        atomic_init(&_audio.ducked, false);
-        voiceDuckReset(&_audio.duck);
         atomic_init(&_audio.reverb, 0); atomic_init(&_audio.pitch, 0);
         atomic_init(&_audio.peak, 0);
         atomic_init(&_audio.callbacks, 0);
@@ -109,8 +103,6 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
 - (void)setReverb:(float)v { atomic_store(&_audio.reverb, audioUnitAmount(v)); }
 - (float)pitch { return atomic_load(&_audio.pitch); }
 - (void)setPitch:(float)v { atomic_store(&_audio.pitch, isfinite(v) ? fminf(12, fmaxf(-12, v)) : 0); }
-- (BOOL)voiceChatDucking { return atomic_load(&_audio.ducked); }
-- (void)setVoiceChatDucking:(BOOL)value { atomic_store(&_audio.ducked, value); }
 - (BOOL)running { return _running; }
 - (float)target { return atomic_load(&_audio.target); }
 - (void)setTarget:(float)value { atomic_store(&_audio.target, isfinite(value) ? fminf(1, fmaxf(-1, value)) : 0); }
@@ -208,7 +200,6 @@ static OSStatus audioCallback(AudioObjectID device, const AudioTimeStamp *now,
     atomic_store(&_audio.callbacks, 0);
     atomic_store(&_audio.badLayout, false);
     atomic_store(&_audio.peak, 0);
-    _audio.duck.gain = atomic_load(&_audio.ducked) ? voiceDuckGain : 1;
     NSString *tapUID = stringProperty(_tap, kAudioTapPropertyUID);
     if (!tapUID || !isfinite(format.mSampleRate) || format.mSampleRate <= 0) { [self stop]; self.errorMessage = @"Invalid tap format."; return NO; }
     if (![self check:filterInit(&_audio.filter, format.mSampleRate) operation:@"Prepare main Apple filters"]) return NO;

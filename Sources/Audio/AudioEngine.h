@@ -6,8 +6,6 @@
 @property float target;
 @property BOOL tapeStop;
 @property float reverb, pitch;
-// Applies macOS-style call ducking to the replayed apps while another app runs voice chat.
-@property BOOL voiceChatDucking;
 @property (readonly) float peak;
 @property (readonly) unsigned callbacks;
 @property (readonly) BOOL running;

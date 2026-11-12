@@ -16,7 +16,7 @@ The three download links in `index.html` (navigation, hero and Install) point to
 
 Brand assets are derived from `Assets/TwiddleWordmark.svg`, `Assets/AppIcon.png` (`assets/icon.png` and `assets/icon-224.jpg`), and `Assets/KnobMetal.png` in this repository. The desktop scene uses an original CSS gradient; third-party marks and font provenance are listed in [asset sources](assets/SOURCES.md).
 
-The social preview `assets/og.png` (1200 × 630) is rendered from `Assets/OG/og.html`. After editing it, run this from the repository root and update the `?v=` on the `og:image` URL:
+The social preview `assets/og.png` (1200 × 630) is rendered from `Assets/OG/og.html`. After editing it, run this from the repository root and copy it to `assets/og-<first 10 SHA-256 characters>.png` and update both the `og:image` and `twitter:image` URLs:
 
 ```sh
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars --force-device-scale-factor=1 --window-size=1200,630 --allow-file-access-from-files --virtual-time-budget=2000 --screenshot="$PWD/site/assets/og.png" "file://$PWD/Assets/OG/og.html"

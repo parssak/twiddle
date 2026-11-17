@@ -5,6 +5,8 @@
 #import "ShortcutRecorder.h"
 #import "DiscoWordmarkView.h"
 #import "AppGridView.h"
+#import "ApplicationInfo.h"
+#import "AudioProcessActivity.h"
 #import "SettingsController.h"
 #import "DiscoOverlay.h"
 #import "FilterKnob.h"
@@ -240,7 +242,10 @@
         [automaticPage addSubview:self.microphoneSwitch];
         self.microphonePicker = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(270, 318, 172, 32) pullsDown:NO];
         self.microphonePicker.bordered = NO;
-        [self.microphonePicker addItemsWithTitles:@[@"Any app", @"Wispr Flow"]];
+        for (NSArray<NSString *> *option in @[@[@"any", @"Any app"], @[@"wispr", @"Wispr Flow"], @[@"granola", @"Granola"]]) {
+            [self.microphonePicker addItemWithTitle:option[1]];
+            self.microphonePicker.lastItem.representedObject = option[0];
+        }
         self.microphonePicker.target = self;
         self.microphonePicker.action = @selector(chooseMicrophoneApp:);
         self.microphonePicker.accessibilityLabel = @"Microphone app";
@@ -380,7 +385,7 @@
 }
 - (void)chooseMicrophoneApp:(NSPopUpButton *)sender {
     [self cancelRecording];
-    [NSUserDefaults.standardUserDefaults setObject:sender.indexOfSelectedItem == 0 ? @"any" : @"wispr" forKey:@"microphoneScope"];
+    [NSUserDefaults.standardUserDefaults setObject:sender.selectedItem.representedObject forKey:@"microphoneScope"];
     if (self.microphoneChanged) self.microphoneChanged();
 }
 - (void)setDiscoEnabled:(BOOL)enabled {
@@ -404,11 +409,13 @@
     self.hapticsSwitch.state = [NSUserDefaults.standardUserDefaults boolForKey:@"hapticsEnabled"] ? NSControlStateValueOn : NSControlStateValueOff;
     self.presetKnob.hapticsEnabled = self.hapticsSwitch.state == NSControlStateValueOn;
     self.microphoneSwitch.state = [NSUserDefaults.standardUserDefaults boolForKey:@"microphoneEnabled"] ? NSControlStateValueOn : NSControlStateValueOff;
-    NSURL *wisprURL = [NSWorkspace.sharedWorkspace URLForApplicationWithBundleIdentifier:@"com.electron.wispr-flow"];
-    NSImage *wisprIcon = wisprURL ? [NSWorkspace.sharedWorkspace iconForFile:wisprURL.path] : nil;
-    wisprIcon.size = NSMakeSize(20, 20);
-    [self.microphonePicker itemAtIndex:1].image = wisprIcon;
-    [self.microphonePicker selectItemAtIndex:[[NSUserDefaults.standardUserDefaults stringForKey:@"microphoneScope"] isEqualToString:@"any"] ? 0 : 1];
+    for (NSMenuItem *item in self.microphonePicker.itemArray) {
+        NSString *bundle = microphoneBundleForScope(item.representedObject);
+        if (bundle) item.image = [ApplicationInfo iconForBundle:bundle];
+    }
+    NSString *scope = [NSUserDefaults.standardUserDefaults stringForKey:@"microphoneScope"] ?: @"wispr";
+    NSInteger selected = [self.microphonePicker indexOfItemWithRepresentedObject:scope];
+    [self.microphonePicker selectItemAtIndex:selected >= 0 ? selected : [self.microphonePicker indexOfItemWithRepresentedObject:@"wispr"]];
     self.microphonePicker.enabled = self.microphoneSwitch.state == NSControlStateValueOn;
 }
 - (void)updateShortcutAccess:(BOOL)granted ready:(BOOL)ready error:(NSString *)error {

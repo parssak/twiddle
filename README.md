@@ -32,7 +32,7 @@ Settings has General and Auto-apply pages. General contains Apps to Twiddle. Aut
 
 The first Settings row opens macOS Menu Bar settings while the icon is present. If you drag the icon out of the menu bar, reopening Twiddle from Applications, Spotlight, or Raycast restores it; the same row becomes a **Restore Icon** button while it is missing. Twiddle falls back to System Settings only when macOS cannot place the restored item.
 
-**Apply when mic is active** applies the preset while **Any app** or **Wispr Flow** has an active audio input. It starts in Wispr Flow mode, enabled when Flow is installed; existing preferences are preserved. Twiddle excludes its own capture. This is experimental: virtual audio inputs and apps that keep their mic open while silent or muted can also activate it. The preset returns to your previous setting after all playback, microphone, and shortcut triggers release.
+**Apply when mic is active** can listen for **Wispr Flow**, **Granola**, or **Any app**. For Granola dictation, open Settings → Auto-apply, turn on **Apply when mic is active**, and choose **Granola** under **Microphone app**. Twiddle holds the preset for as long as Granola uses an audio input, including during meeting transcription. It starts in Wispr Flow mode, enabled when Flow is installed; existing preferences are preserved. Twiddle excludes its own capture. This is experimental: virtual audio inputs and apps that keep their mic open while silent or muted can also activate it. The preset returns to your previous setting after all playback, microphone, and shortcut triggers release.
 
 Click the Twiddle wordmark in Settings to check, download, and install updates when disco mode is inactive.
 

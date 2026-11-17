@@ -116,7 +116,7 @@ static NSImage *knobStatusImage(NSInteger degrees) {
     [defaults registerDefaults:@{@"hapticsEnabled": @YES}];
     [defaults registerDefaults:@{@"microphoneScope": @"wispr"}];
     if (![defaults objectForKey:@"microphoneEnabled"]) {
-        BOOL installed = [NSWorkspace.sharedWorkspace URLForApplicationWithBundleIdentifier:@"com.electron.wispr-flow"] != nil;
+        BOOL installed = [NSWorkspace.sharedWorkspace URLForApplicationWithBundleIdentifier:microphoneBundleForScope(@"wispr")] != nil;
         NSNumber *previous = [defaults objectForKey:@"followWisprFlow"];
         [defaults setBool:previous ? previous.boolValue : installed forKey:@"microphoneEnabled"];
     }

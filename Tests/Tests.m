@@ -49,6 +49,14 @@ static int controlTests(void) {
     CHECK(!audioProcessMatchesBundle(@"com.google.Chrome.helper", @"company.thebrowser.Browser"));
     CHECK(!audioProcessMatchesBundle(nil, @"company.thebrowser.Browser"));
     CHECK(!audioProcessMatchesBundle(@"company.thebrowser.browser.helper", @""));
+    NSString *granola = microphoneBundleForScope(@"granola");
+    CHECK(audioProcessMatchesBundle(@"com.granola.app", granola));
+    CHECK(audioProcessMatchesBundle(@"com.granola.app.helper", granola));
+    CHECK(!audioProcessMatchesBundle(@"com.granola.application.helper", granola));
+    CHECK(!audioProcessMatchesBundle(@"com.electron.wispr-flow.helper", granola));
+    CHECK(!audioProcessMatchesBundle(@"com.granola.app.helper", microphoneBundleForScope(@"wispr")));
+    CHECK(audioProcessMatchesBundle(@"com.electron.wispr-flow.helper", microphoneBundleForScope(nil)));
+    CHECK(microphoneBundleForScope(@"any") == nil);
     NSSet *noPlaybackApps = [NSSet set];
     NSSet *codex = [NSSet setWithObject:@"com.openai.codex"];
     CHECK(audioProcessMatchesPlaybackTrigger(nil, @"/usr/bin/say", noPlaybackApps));

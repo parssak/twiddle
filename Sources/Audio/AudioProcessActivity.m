@@ -68,7 +68,13 @@ NSDictionary<NSNumber *, NSString *> *audioProcessBundles(void) {
     return identities;
 }
 
-static BOOL processActive(NSString *scope, NSSet<NSString *> *bundles, NSMutableArray<NSNumber *> *outputs) {
+NSString *microphoneBundleForScope(NSString *scope) {
+    if ([scope isEqualToString:@"any"]) return nil;
+    if ([scope isEqualToString:@"granola"]) return @"com.granola.app";
+    return @"com.electron.wispr-flow"; // Original default, including older preferences.
+}
+
+static BOOL processActive(NSString *microphoneBundle, NSSet<NSString *> *bundles, NSMutableArray<NSNumber *> *outputs) {
     NSData *data = audioProcessList();
     const AudioObjectID *processes = data.bytes;
     for (NSUInteger i = 0; i < data.length / sizeof(AudioObjectID); i++) {
@@ -91,8 +97,7 @@ static BOOL processActive(NSString *scope, NSSet<NSString *> *bundles, NSMutable
             }
             [outputs addObject:@(processes[i])];
             continue;
-        } else if (![scope isEqualToString:@"any"] &&
-            !audioProcessMatchesBundle(bundle, @"com.electron.wispr-flow")) continue;
+        } else if (microphoneBundle && !audioProcessMatchesBundle(bundle, microphoneBundle)) continue;
         UInt32 active = 0;
         if (readProperty(processes[i], kAudioProcessPropertyIsRunningInput, kAudioObjectPropertyScopeGlobal, sizeof(active), &active) || !active) continue;
         // Background services can report active input without using any device.
@@ -105,7 +110,7 @@ static BOOL processActive(NSString *scope, NSSet<NSString *> *bundles, NSMutable
     return NO;
 }
 
-BOOL microphoneActive(NSString *scope) { return processActive(scope, nil, nil); }
+BOOL microphoneActive(NSString *scope) { return processActive(microphoneBundleForScope(scope), nil, nil); }
 NSArray<NSNumber *> *activeOutputProcesses(NSSet<NSString *> *bundles) {
     NSMutableArray *outputs = [NSMutableArray new];
     processActive(nil, bundles ?: [NSSet set], outputs);

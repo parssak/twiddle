@@ -3,7 +3,8 @@
 @class CATapDescription;
 
 // Core Audio process discovery only. These queries never capture audio.
-// Microphone scope is "any" or "wispr".
+// "any" accepts all apps; named scopes match a bundle and its helpers.
+NSString *microphoneBundleForScope(NSString *scope);
 BOOL microphoneActive(NSString *scope);
 
 // Active output streams for selected apps and /usr/bin/say (including silent
